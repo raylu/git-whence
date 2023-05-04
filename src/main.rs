@@ -42,7 +42,19 @@ enum Index {
 
 struct App {
 	left: Pager,
-	right: Pager,
+	right: Option<Pager>,
+}
+
+impl App {
+	fn one_pane<'a>() -> Box<HSplit<'a, App>> {
+		Box::new(HSplit::new(vec![(Box::new(Leaf::new(Index::Left)), 1.0)]))
+	}
+	fn two_pane<'a>() -> Box<HSplit<'a, App>> {
+		Box::new(HSplit::new(vec![
+			(Box::new(Leaf::new(Index::Left)), 0.5),
+			(Box::new(Leaf::new(Index::Right)), 0.5),
+		]))
+	}
 }
 
 impl ContainerProvider for App {
@@ -51,13 +63,19 @@ impl ContainerProvider for App {
 	fn get<'a, 'b: 'a>(&'b self, index: &'a Self::Index) -> &'b dyn Container<Self::Context> {
 		match index {
 			Index::Left => &self.left,
-			Index::Right => &self.right,
+			Index::Right => match &self.right {
+				Some(r) => r,
+				None => &self.left,
+			},
 		}
 	}
 	fn get_mut<'a, 'b: 'a>(&'b mut self, index: &'a Self::Index) -> &'b mut dyn Container<Self::Context> {
 		match index {
 			Index::Left => &mut self.left,
-			Index::Right => &mut self.right,
+			Index::Right => match &mut self.right {
+				Some(ref mut r) => r,
+				None => &mut self.left,
+			},
 		}
 	}
 	const DEFAULT_CONTAINER: Self::Index = Index::Left;
@@ -70,18 +88,12 @@ fn main() {
 
 	let mut app = App {
 		left: Pager::new(),
-		right: Pager::new(),
+		right: None,
 	};
 	for _ in 1..10 {
 		writeln!(app.left.buffer, "hi").unwrap();
 	}
-	for _ in 1..10 {
-		writeln!(app.right.buffer, "bye").unwrap();
-	}
-	let mut manager = ContainerManager::<App>::from_layout(Box::new(HSplit::new(vec![
-		(Box::new(Leaf::new(Index::Left)), 0.5),
-		(Box::new(Leaf::new(Index::Right)), 0.5),
-	])));
+	let mut manager = ContainerManager::<App>::from_layout(App::one_pane());
 	let mut term = Terminal::new(stdout.lock()).unwrap();
 
 	manager.draw(
@@ -103,10 +115,25 @@ fn main() {
 			)
 			.finish();
 		if let Some(i) = input {
-			if let Event::Key(Key::Char(c)) = i.event {
-				if c == 'q' {
-					drop(term);
-					exit(0);
+			if let Event::Key(key) = i.event {
+				match key {
+					Key::Char('\n') => {
+						let mut right = Pager::new();
+						for _ in 1..10 {
+							writeln!(right.buffer, "bye").unwrap();
+						}
+						app.right = Some(right);
+						manager.set_layout(App::two_pane());
+						manager.set_active(Index::Right);
+					}
+					Key::Esc => {
+						manager.set_layout(App::one_pane());
+					}
+					Key::Char('q') => {
+						drop(term);
+						exit(0);
+					}
+					_ => {} // ignored
 				}
 			}
 		}
