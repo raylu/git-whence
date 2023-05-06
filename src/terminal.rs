@@ -1,96 +1,108 @@
-use unsegen::base::{Color, StyleModifier, Terminal};
-use unsegen::container::{Container, ContainerManager, ContainerProvider, HSplit, Leaf};
-use unsegen::input::{Input, Key, ScrollBehavior};
-use unsegen::widget::builtin::LogViewer;
-use unsegen::widget::{RenderingHints, Widget};
+use crossterm::{
+	event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode::Char, KeyEvent},
+	execute,
+	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use std::{
+	error::Error,
+	io::{self, Stdout},
+	time::{Duration, Instant},
+};
+use tui::{
+	backend::{Backend, CrosstermBackend},
+	layout::{Alignment, Constraint, Direction, Layout},
+	style::{Modifier, Style},
+	text::{Span, Spans},
+	widgets::{Block, Borders, Paragraph},
+	Frame, Terminal,
+};
 
-pub struct Pager {
-	pub buffer: LogViewer,
+pub struct App<'a> {
+	pub blame: Vec<Spans<'a>>,
+	scroll: u16,
 }
 
-impl Pager {
-	pub fn new() -> Self {
-		Pager {
-			buffer: LogViewer::new(),
-		}
-	}
-}
-
-impl Container<()> for Pager {
-	fn input(&mut self, input: Input, _: &mut ()) -> Option<Input> {
-		input
-			.chain(
-				ScrollBehavior::new(&mut self.buffer)
-					.backwards_on(Key::Char('k'))
-					.forwards_on(Key::Char('j')),
-			)
-			.finish()
-	}
-	fn as_widget<'a>(&'a self) -> Box<dyn Widget + 'a> {
-		Box::new(self.buffer.as_widget())
-	}
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum Index {
-	Left,
-	Right,
-}
-
-pub struct App {
-	pub left: Pager,
-	pub right: Option<Pager>,
-}
-
-impl App {
-	pub fn new() -> App {
+impl App<'_> {
+	pub fn new<'a>() -> App<'a> {
 		App {
-			left: Pager::new(),
-			right: None,
+			blame: vec![],
+			scroll: 0,
 		}
 	}
 
-	pub fn draw(&mut self, manager: &ContainerManager<App>, term: &mut Terminal) {
-		manager.draw(
-			term.create_root_window(),
-			self,
-			StyleModifier::new().fg_color(Color::Yellow),
-			RenderingHints::default(),
-		);
-		term.present();
-	}
+	fn on_tick(&mut self) {}
+}
 
-	pub fn one_pane<'a>() -> Box<HSplit<'a, App>> {
-		Box::new(HSplit::new(vec![(Box::new(Leaf::new(Index::Left)), 1.0)]))
-	}
-	pub fn two_pane<'a>() -> Box<HSplit<'a, App>> {
-		Box::new(HSplit::new(vec![
-			(Box::new(Leaf::new(Index::Left)), 0.5),
-			(Box::new(Leaf::new(Index::Right)), 0.5),
-		]))
+type CrosstermTerm = Terminal<CrosstermBackend<Stdout>>;
+
+pub fn setup() -> Result<CrosstermTerm, Box<dyn Error>> {
+	enable_raw_mode()?;
+	let mut stdout = io::stdout();
+	execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+	let backend = CrosstermBackend::new(stdout);
+	Ok(Terminal::new(backend)?)
+}
+
+pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> io::Result<()> {
+	let tick_rate = Duration::from_millis(250);
+	let mut last_tick = Instant::now();
+	loop {
+		terminal.draw(|f| ui(f, &app))?;
+
+		let timeout = tick_rate
+			.checked_sub(last_tick.elapsed())
+			.unwrap_or_else(|| Duration::from_secs(0));
+		if crossterm::event::poll(timeout)? {
+			if let Event::Key(key) = event::read()? {
+				match key {
+					KeyEvent { code: Char('j'), .. } => {
+						app.scroll += 1;
+					}
+					KeyEvent { code: Char('k'), .. } => {
+						if app.scroll > 0 {
+							app.scroll -= 1;
+						}
+					}
+					KeyEvent { code: Char('q'), .. } => {
+						return Ok(());
+					}
+					_ => {} // ignored
+				}
+			}
+		}
+		if last_tick.elapsed() >= tick_rate {
+			app.on_tick();
+			last_tick = Instant::now();
+		}
 	}
 }
 
-impl ContainerProvider for App {
-	type Context = ();
-	type Index = Index;
-	fn get<'a, 'b: 'a>(&'b self, index: &'a Self::Index) -> &'b dyn Container<Self::Context> {
-		match index {
-			Index::Left => &self.left,
-			Index::Right => match &self.right {
-				Some(r) => r,
-				None => &self.left,
-			},
-		}
-	}
-	fn get_mut<'a, 'b: 'a>(&'b mut self, index: &'a Self::Index) -> &'b mut dyn Container<Self::Context> {
-		match index {
-			Index::Left => &mut self.left,
-			Index::Right => match &mut self.right {
-				Some(ref mut r) => r,
-				None => &mut self.left,
-			},
-		}
-	}
-	const DEFAULT_CONTAINER: Self::Index = Index::Left;
+pub fn teardown(terminal: &mut CrosstermTerm) -> Result<(), Box<dyn Error>> {
+	disable_raw_mode()?;
+	execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+	terminal.show_cursor()?;
+	Ok(())
+}
+
+fn ui<B: Backend>(frame: &mut Frame<B>, app: &App) {
+	let size = frame.size();
+	let chunks = Layout::default()
+		.direction(Direction::Horizontal)
+		.constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+		.split(size);
+
+	let block = Block::default()
+		.borders(Borders::ALL)
+		.title(Span::styled("block", Style::default().add_modifier(Modifier::BOLD)));
+	let paragraph = Paragraph::new(app.blame.clone())
+		.block(block.clone())
+		.alignment(Alignment::Left)
+		.scroll((app.scroll, 0));
+	frame.render_widget(paragraph, chunks[0]);
+
+	let paragraph = Paragraph::new("")
+		.block(block)
+		.alignment(Alignment::Left)
+		.scroll((app.scroll, 0));
+	frame.render_widget(paragraph, chunks[1]);
 }
