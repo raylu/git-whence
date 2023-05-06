@@ -6,7 +6,6 @@ use crossterm::{
 use std::{
 	error::Error,
 	io::{self, Stdout},
-	time::{Duration, Instant},
 };
 use tui::{
 	backend::{Backend, CrosstermBackend},
@@ -29,8 +28,6 @@ impl App<'_> {
 			scroll: 0,
 		}
 	}
-
-	fn on_tick(&mut self) {}
 }
 
 type CrosstermTerm = Terminal<CrosstermBackend<Stdout>>;
@@ -44,35 +41,24 @@ pub fn setup() -> Result<CrosstermTerm, Box<dyn Error>> {
 }
 
 pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> io::Result<()> {
-	let tick_rate = Duration::from_millis(250);
-	let mut last_tick = Instant::now();
 	loop {
 		terminal.draw(|f| ui(f, &app))?;
 
-		let timeout = tick_rate
-			.checked_sub(last_tick.elapsed())
-			.unwrap_or_else(|| Duration::from_secs(0));
-		if crossterm::event::poll(timeout)? {
-			if let Event::Key(key) = event::read()? {
-				match key {
-					KeyEvent { code: Char('j'), .. } => {
-						app.scroll += 1;
-					}
-					KeyEvent { code: Char('k'), .. } => {
-						if app.scroll > 0 {
-							app.scroll -= 1;
-						}
-					}
-					KeyEvent { code: Char('q'), .. } => {
-						return Ok(());
-					}
-					_ => {} // ignored
+		if let Event::Key(key) = event::read()? {
+			match key {
+				KeyEvent { code: Char('j'), .. } => {
+					app.scroll += 1;
 				}
+				KeyEvent { code: Char('k'), .. } => {
+					if app.scroll > 0 {
+						app.scroll -= 1;
+					}
+				}
+				KeyEvent { code: Char('q'), .. } => {
+					return Ok(());
+				}
+				_ => {} // ignored
 			}
-		}
-		if last_tick.elapsed() >= tick_rate {
-			app.on_tick();
-			last_tick = Instant::now();
 		}
 	}
 }
