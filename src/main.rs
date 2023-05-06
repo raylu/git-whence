@@ -18,10 +18,13 @@ fn main() {
 
 	let mut term = terminal::setup().unwrap();
 	let mut app = terminal::App::new();
-	app.blame = git::blame(&repo, path);
+	app.blame = match git::blame(&repo, path) {
+		Ok(blame) => blame,
+		Err(e) => panic!("{}", e),
+	};
 	let res = terminal::run_app(&mut term, app);
 
-	terminal::teardown(&mut term).unwrap();
+	terminal::teardown(&mut term);
 	if let Err(err) = res {
 		println!("{:?}", err)
 	}

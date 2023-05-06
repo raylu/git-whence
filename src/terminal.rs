@@ -77,11 +77,10 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> io::Result<()> {
 	}
 }
 
-pub fn teardown(terminal: &mut CrosstermTerm) -> Result<(), Box<dyn Error>> {
-	disable_raw_mode()?;
-	execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
-	terminal.show_cursor()?;
-	Ok(())
+pub fn teardown(terminal: &mut CrosstermTerm) {
+	_ = disable_raw_mode();
+	_ = execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture);
+	_ = terminal.show_cursor();
 }
 
 fn ui<B: Backend>(frame: &mut Frame<B>, app: &App) {
