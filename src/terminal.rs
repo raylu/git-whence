@@ -1,5 +1,9 @@
 use crossterm::{
-	event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode::Char, KeyEvent},
+	event::{
+		self, DisableMouseCapture, EnableMouseCapture, Event,
+		KeyCode::{self, Char},
+		KeyEvent,
+	},
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -10,22 +14,22 @@ use std::{
 use tui::{
 	backend::{Backend, CrosstermBackend},
 	layout::{Alignment, Constraint, Direction, Layout},
-	style::{Modifier, Style},
-	text::{Span, Spans},
-	widgets::{Block, Borders, Paragraph},
+	style::{Color, Style},
+	text::Spans,
+	widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 	Frame, Terminal,
 };
 
 pub struct App<'a> {
 	pub blame: Vec<Spans<'a>>,
-	scroll: u16,
+	blame_state: ListState,
 }
 
 impl App<'_> {
 	pub fn new<'a>() -> App<'a> {
 		App {
 			blame: vec![],
-			scroll: 0,
+			blame_state: ListState::default(),
 		}
 	}
 }
@@ -42,18 +46,36 @@ pub fn setup() -> Result<CrosstermTerm, Box<dyn Error>> {
 
 pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> io::Result<()> {
 	loop {
-		terminal.draw(|f| ui(f, &app))?;
+		terminal.draw(|f| ui(f, &mut app))?;
 
 		if let Event::Key(key) = event::read()? {
 			match key {
-				KeyEvent { code: Char('j'), .. } => {
-					app.scroll += 1;
-				}
-				KeyEvent { code: Char('k'), .. } => {
-					if app.scroll > 0 {
-						app.scroll -= 1;
+				KeyEvent {
+					code: Char('j') | KeyCode::Down,
+					..
+				} => match app.blame_state.selected() {
+					Some(index) => {
+						if index < app.blame.len() - 1 {
+							app.blame_state.select(Some(index + 1));
+						}
 					}
-				}
+					None => {
+						app.blame_state.select(Some(0));
+					}
+				},
+				KeyEvent {
+					code: Char('k') | KeyCode::Up,
+					..
+				} => match app.blame_state.selected() {
+					Some(index) => {
+						if index > 0 {
+							app.blame_state.select(Some(index - 1));
+						}
+					}
+					None => {
+						app.blame_state.select(Some(0));
+					}
+				},
 				KeyEvent { code: Char('q'), .. } => {
 					return Ok(());
 				}
@@ -69,25 +91,19 @@ pub fn teardown(terminal: &mut CrosstermTerm) {
 	_ = terminal.show_cursor();
 }
 
-fn ui<B: Backend>(frame: &mut Frame<B>, app: &App) {
+fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 	let size = frame.size();
 	let chunks = Layout::default()
 		.direction(Direction::Horizontal)
-		.constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+		.constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
 		.split(size);
 
-	let block = Block::default()
-		.borders(Borders::ALL)
-		.title(Span::styled("block", Style::default().add_modifier(Modifier::BOLD)));
-	let paragraph = Paragraph::new(app.blame.clone())
-		.block(block.clone())
-		.alignment(Alignment::Left)
-		.scroll((app.scroll, 0));
-	frame.render_widget(paragraph, chunks[0]);
+	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.clone())).collect();
+	let list = List::new(items)
+		.block(Block::default().borders(Borders::RIGHT))
+		.highlight_style(Style::default().bg(Color::DarkGray));
+	frame.render_stateful_widget(list, chunks[0], &mut app.blame_state);
 
-	let paragraph = Paragraph::new("")
-		.block(block)
-		.alignment(Alignment::Left)
-		.scroll((app.scroll, 0));
+	let paragraph = Paragraph::new("").block(Block::default()).alignment(Alignment::Left);
 	frame.render_widget(paragraph, chunks[1]);
 }
