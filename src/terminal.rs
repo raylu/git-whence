@@ -107,7 +107,7 @@ fn handle_input(key: &KeyEvent, app: &mut App) -> Result<bool, Box<dyn Error>> {
 			if let Some(index) = app.blame_state.selected() {
 				let parent = app.repo.find_commit(app.blame[index].commit)?.parent_id(0)?;
 				app.blame = git::blame(&app.repo, app.filepath, parent)?;
-				app.blame_state = ListState::default();
+				app.blame_state.select(Some(index.min(app.blame.len())));
 				app.commit = parent;
 			}
 		}
