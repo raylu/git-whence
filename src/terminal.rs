@@ -17,23 +17,23 @@ use tui::{
 	backend::{Backend, CrosstermBackend},
 	layout::{Alignment, Constraint, Direction, Layout},
 	style::{Color, Style},
-	text::{Spans, Text},
+	text::Text,
 	widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 	Frame, Terminal,
 };
 
 use crate::git;
 
-pub struct App<'a, 'b> {
-	pub blame: Vec<Spans<'a>>,
+pub struct App<'a> {
+	pub blame: Vec<git::BlameLine>,
 	blame_state: ListState,
-	repo: &'b Repository,
-	filepath: &'b Path,
+	repo: &'a Repository,
+	filepath: &'a Path,
 	line_history: Option<Text<'static>>,
 }
 
-impl App<'_, '_> {
-	pub fn new<'b>(repo: &'b Repository, filepath: &'b Path) -> App<'static, 'b> {
+impl App<'_> {
+	pub fn new<'a>(repo: &'a Repository, filepath: &'a Path) -> App<'a> {
 		App {
 			blame: vec![],
 			blame_state: ListState::default(),
@@ -93,6 +93,13 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn
 						app.line_history = Some(git::log_follow(app.repo, app.filepath, index));
 					}
 				}
+				KeyEvent { code: Char('b'), .. } => {
+					if let Some(index) = app.blame_state.selected() {
+						let parent = app.repo.find_commit(app.blame[index].commit)?.parent_id(0)?;
+						app.blame = git::blame(&app.repo, app.filepath, Some(parent))?;
+						app.blame_state = ListState::default();
+					}
+				}
 				KeyEvent {
 					code: Char('q') | KeyCode::Esc,
 					..
@@ -127,7 +134,7 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 		.constraints(constraints)
 		.split(frame.size());
 
-	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.clone())).collect();
+	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.spans.clone())).collect();
 	let list = List::new(items).highlight_style(Style::default().bg(Color::DarkGray));
 	frame.render_stateful_widget(list, chunks[0], &mut app.blame_state);
 

@@ -1,5 +1,5 @@
 use ansi_to_tui::IntoText;
-use git2::Repository;
+use git2::{BlameOptions, Oid, Repository};
 use std::{
 	error,
 	fs::File,
@@ -12,10 +12,21 @@ use tui::{
 	text::{Span, Spans, Text},
 };
 
-pub fn blame(repo: &Repository, path: &Path) -> Result<Vec<Spans<'static>>, Box<dyn error::Error>> {
+#[derive(Debug)]
+pub struct BlameLine {
+	pub spans: Spans<'static>,
+	pub commit: Oid,
+}
+
+pub fn blame(repo: &Repository, path: &Path, commit: Option<Oid>) -> Result<Vec<BlameLine>, Box<dyn error::Error>> {
 	let repo_path = repo.workdir().unwrap();
 	let rel_path = path.strip_prefix(repo_path).unwrap();
-	let blame = repo.blame_file(rel_path, None)?;
+	let mut opts = BlameOptions::default();
+	if let Some(oid) = commit {
+		opts.newest_commit(oid);
+	}
+	let blame = repo.blame_file(rel_path, Some(&mut opts))?;
+
 	let mut lines = BufReader::new(File::open(path)?).lines();
 	let mut out = vec![];
 	let mut line_num: usize = 1;
@@ -23,20 +34,28 @@ pub fn blame(repo: &Repository, path: &Path) -> Result<Vec<Spans<'static>>, Box<
 		let mut commit = b.final_commit_id().to_string();
 		commit.truncate(8);
 		let author = format!(" {:12}", b.final_signature().name().unwrap_or_default());
-		out.push(Spans::from(vec![
+		let spans = Spans::from(vec![
 			Span::styled(commit, Style::default().fg(Color::Yellow)),
 			Span::raw(author),
 			Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
 			Span::raw(lines.next().unwrap()?),
-		]));
+		]);
+		out.push(BlameLine {
+			spans,
+			commit: b.final_commit_id(),
+		});
 		line_num += 1;
 		for _ in 1..b.lines_in_hunk() {
-			out.push(Spans::from(vec![
+			let spans = Spans::from(vec![
 				Span::raw(" ".repeat(21)),
 				Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
 				Span::raw(lines.next().unwrap()?),
-			]));
+			]);
 			line_num += 1;
+			out.push(BlameLine {
+				spans,
+				commit: b.final_commit_id(),
+			});
 		}
 	}
 	Ok(out)

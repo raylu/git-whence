@@ -18,7 +18,7 @@ fn main() {
 
 	let mut term = terminal::setup().unwrap();
 	let mut app = terminal::App::new(&repo, path);
-	app.blame = match git::blame(&repo, path) {
+	app.blame = match git::blame(&repo, path, None) {
 		Ok(blame) => blame,
 		Err(e) => panic!("{}", e),
 	};
