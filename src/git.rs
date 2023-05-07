@@ -1,14 +1,15 @@
+use ansi_to_tui::IntoText;
 use git2::Repository;
 use std::{
 	error,
 	fs::File,
-	io::{self, BufRead, BufReader},
+	io::{BufRead, BufReader},
 	path::Path,
 	process,
 };
 use tui::{
 	style::{Color, Style},
-	text::{Span, Spans},
+	text::{Span, Spans, Text},
 };
 
 pub fn blame(repo: &Repository, path: &Path) -> Result<Vec<Spans<'static>>, Box<dyn error::Error>> {
@@ -41,15 +42,33 @@ pub fn blame(repo: &Repository, path: &Path) -> Result<Vec<Spans<'static>>, Box<
 	Ok(out)
 }
 
-pub fn log_follow(repo: &Repository, path: &Path, line_num: usize) -> io::Result<process::Output> {
+pub fn log_follow(repo: &Repository, path: &Path, line_num: usize) -> Text<'static> {
 	let repo_path = repo.workdir().unwrap();
 	let rel_path = path.strip_prefix(repo_path).unwrap();
-	process::Command::new("git")
+	let output = process::Command::new("git")
 		.args([
 			"log",
+			"--color=always",
 			"-L",
 			&format!("{},{}:{}", line_num + 1, line_num + 1, rel_path.display()),
 		])
 		.current_dir(repo_path)
-		.output()
+		.output();
+
+	let buf = match output {
+		Ok(o) => {
+			if o.status.success() {
+				o.stdout
+			} else {
+				o.stderr
+			}
+		}
+		Err(e) => {
+			return Text::raw(e.to_string());
+		}
+	};
+	match buf.into_text() {
+		Ok(t) => t,
+		Err(e) => Text::raw(format!("ansi_to_tui:\n{}", e)),
+	}
 }

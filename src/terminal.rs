@@ -17,7 +17,7 @@ use tui::{
 	backend::{Backend, CrosstermBackend},
 	layout::{Alignment, Constraint, Direction, Layout},
 	style::{Color, Style},
-	text::Spans,
+	text::{Spans, Text},
 	widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 	Frame, Terminal,
 };
@@ -29,7 +29,7 @@ pub struct App<'a, 'b> {
 	blame_state: ListState,
 	repo: &'b Repository,
 	filepath: &'b Path,
-	line_history: Option<String>,
+	line_history: Option<Text<'static>>,
 }
 
 impl App<'_, '_> {
@@ -90,12 +90,7 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn
 					code: KeyCode::Enter, ..
 				} => {
 					if let Some(index) = app.blame_state.selected() {
-						let output = git::log_follow(app.repo, app.filepath, index)?;
-						if output.status.success() {
-							app.line_history = Some(std::str::from_utf8(&output.stdout)?.to_string());
-						} else {
-							app.line_history = Some(std::str::from_utf8(&output.stderr)?.to_string());
-						}
+						app.line_history = Some(git::log_follow(app.repo, app.filepath, index));
 					}
 				}
 				KeyEvent {
@@ -133,14 +128,12 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 		.split(frame.size());
 
 	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.clone())).collect();
-	let list = List::new(items)
-		.block(Block::default().borders(Borders::RIGHT))
-		.highlight_style(Style::default().bg(Color::DarkGray));
+	let list = List::new(items).highlight_style(Style::default().bg(Color::DarkGray));
 	frame.render_stateful_widget(list, chunks[0], &mut app.blame_state);
 
 	if let Some(log) = &app.line_history {
-		let paragraph = Paragraph::new(log.as_ref())
-			.block(Block::default())
+		let paragraph = Paragraph::new(log.clone())
+			.block(Block::default().borders(Borders::LEFT))
 			.alignment(Alignment::Left);
 		frame.render_widget(paragraph, chunks[1]);
 	}

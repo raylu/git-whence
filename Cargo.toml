@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ansi-to-tui = "3"
 crossterm = "0.26"
-git2 = { version = "0.17.1", default-features = false }
-tui = "0.19"
+git2 = { version = "0.17", default-features = false }
+tui = { version = "0.20", package = "ratatui" }
