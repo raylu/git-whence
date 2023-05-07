@@ -7,9 +7,11 @@ use crossterm::{
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use git2::Repository;
 use std::{
 	error::Error,
 	io::{self, Stdout},
+	path::Path,
 };
 use tui::{
 	backend::{Backend, CrosstermBackend},
@@ -20,16 +22,24 @@ use tui::{
 	Frame, Terminal,
 };
 
-pub struct App<'a> {
+use crate::git;
+
+pub struct App<'a, 'b> {
 	pub blame: Vec<Spans<'a>>,
 	blame_state: ListState,
+	repo: &'b Repository,
+	filepath: &'b Path,
+	line_history: Option<String>,
 }
 
-impl App<'_> {
-	pub fn new<'a>() -> App<'a> {
+impl App<'_, '_> {
+	pub fn new<'b>(repo: &'b Repository, filepath: &'b Path) -> App<'static, 'b> {
 		App {
 			blame: vec![],
 			blame_state: ListState::default(),
+			repo,
+			filepath,
+			line_history: None,
 		}
 	}
 }
@@ -44,7 +54,7 @@ pub fn setup() -> Result<CrosstermTerm, Box<dyn Error>> {
 	Ok(Terminal::new(backend)?)
 }
 
-pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> io::Result<()> {
+pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn Error>> {
 	loop {
 		terminal.draw(|f| ui(f, &mut app))?;
 
@@ -76,8 +86,27 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> io::Result<()> {
 						app.blame_state.select(Some(0));
 					}
 				},
-				KeyEvent { code: Char('q'), .. } => {
-					return Ok(());
+				KeyEvent {
+					code: KeyCode::Enter, ..
+				} => {
+					if let Some(index) = app.blame_state.selected() {
+						let output = git::log_follow(app.repo, app.filepath, index)?;
+						if output.status.success() {
+							app.line_history = Some(std::str::from_utf8(&output.stdout)?.to_string());
+						} else {
+							app.line_history = Some(std::str::from_utf8(&output.stderr)?.to_string());
+						}
+					}
+				}
+				KeyEvent {
+					code: Char('q') | KeyCode::Esc,
+					..
+				} => {
+					if app.line_history.is_some() {
+						app.line_history = None
+					} else {
+						return Ok(());
+					}
 				}
 				_ => {} // ignored
 			}
@@ -92,11 +121,16 @@ pub fn teardown(terminal: &mut CrosstermTerm) {
 }
 
 fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
-	let size = frame.size();
+	let constraints: &[Constraint];
+	if app.line_history.is_none() {
+		constraints = [Constraint::Percentage(100)].as_ref();
+	} else {
+		constraints = [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref();
+	}
 	let chunks = Layout::default()
 		.direction(Direction::Horizontal)
-		.constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
-		.split(size);
+		.constraints(constraints)
+		.split(frame.size());
 
 	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.clone())).collect();
 	let list = List::new(items)
@@ -104,6 +138,10 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 		.highlight_style(Style::default().bg(Color::DarkGray));
 	frame.render_stateful_widget(list, chunks[0], &mut app.blame_state);
 
-	let paragraph = Paragraph::new("").block(Block::default()).alignment(Alignment::Left);
-	frame.render_widget(paragraph, chunks[1]);
+	if let Some(log) = &app.line_history {
+		let paragraph = Paragraph::new(log.as_ref())
+			.block(Block::default())
+			.alignment(Alignment::Left);
+		frame.render_widget(paragraph, chunks[1]);
+	}
 }

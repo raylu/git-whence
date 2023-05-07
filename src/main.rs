@@ -7,7 +7,7 @@ mod terminal;
 fn main() {
 	let args: Vec<String> = env::args().collect();
 	if args.len() != 2 {
-		println!("usage: {} <filepath>", args[0].rsplitn(2, "/").next().unwrap());
+		println!("usage: {} <filepath>", args[0].rsplit('/').next().unwrap());
 	}
 	let path = Path::new(&args[1]);
 
@@ -17,7 +17,7 @@ fn main() {
 	};
 
 	let mut term = terminal::setup().unwrap();
-	let mut app = terminal::App::new();
+	let mut app = terminal::App::new(&repo, path);
 	app.blame = match git::blame(&repo, path) {
 		Ok(blame) => blame,
 		Err(e) => panic!("{}", e),
