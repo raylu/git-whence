@@ -7,7 +7,7 @@ use crossterm::{
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use git2::{Repository, Oid};
+use git2::{Oid, Repository};
 use std::{
 	error::Error,
 	io::{self, Stdout},
@@ -59,64 +59,71 @@ pub fn setup() -> Result<CrosstermTerm, Box<dyn Error>> {
 pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn Error>> {
 	loop {
 		terminal.draw(|f| ui(f, &mut app))?;
-
 		if let Event::Key(key) = event::read()? {
-			match key {
-				KeyEvent {
-					code: Char('j') | KeyCode::Down,
-					..
-				} => match app.blame_state.selected() {
-					Some(index) => {
-						if index < app.blame.len() - 1 {
-							app.blame_state.select(Some(index + 1));
-						}
-					}
-					None => {
-						app.blame_state.select(Some(0));
-					}
-				},
-				KeyEvent {
-					code: Char('k') | KeyCode::Up,
-					..
-				} => match app.blame_state.selected() {
-					Some(index) => {
-						if index > 0 {
-							app.blame_state.select(Some(index - 1));
-						}
-					}
-					None => {
-						app.blame_state.select(Some(0));
-					}
-				},
-				KeyEvent {
-					code: KeyCode::Enter, ..
-				} => {
-					if let Some(index) = app.blame_state.selected() {
-						app.line_history = Some(git::log_follow(app.repo, app.filepath, index, app.commit));
-					}
-				}
-				KeyEvent { code: Char('b'), .. } => {
-					if let Some(index) = app.blame_state.selected() {
-						let parent = app.repo.find_commit(app.blame[index].commit)?.parent_id(0)?;
-						app.blame = git::blame(&app.repo, app.filepath, parent)?;
-						app.blame_state = ListState::default();
-						app.commit = parent;
-					}
-				}
-				KeyEvent {
-					code: Char('q') | KeyCode::Esc,
-					..
-				} => {
-					if app.line_history.is_some() {
-						app.line_history = None
-					} else {
-						return Ok(());
-					}
-				}
-				_ => {} // ignored
+			if !handle_input(&key, &mut app)? {
+				return Ok(());
 			}
 		}
 	}
+}
+
+// returns whether to continue running the app
+fn handle_input(key: &KeyEvent, app: &mut App) -> Result<bool, Box<dyn Error>> {
+	match key {
+		KeyEvent {
+			code: Char('j') | KeyCode::Down,
+			..
+		} => match app.blame_state.selected() {
+			Some(index) => {
+				if index < app.blame.len() - 1 {
+					app.blame_state.select(Some(index + 1));
+				}
+			}
+			None => {
+				app.blame_state.select(Some(0));
+			}
+		},
+		KeyEvent {
+			code: Char('k') | KeyCode::Up,
+			..
+		} => match app.blame_state.selected() {
+			Some(index) => {
+				if index > 0 {
+					app.blame_state.select(Some(index - 1));
+				}
+			}
+			None => {
+				app.blame_state.select(Some(0));
+			}
+		},
+		KeyEvent {
+			code: KeyCode::Enter, ..
+		} => {
+			if let Some(index) = app.blame_state.selected() {
+				app.line_history = Some(git::log_follow(app.repo, app.filepath, index, app.commit));
+			}
+		}
+		KeyEvent { code: Char('b'), .. } => {
+			if let Some(index) = app.blame_state.selected() {
+				let parent = app.repo.find_commit(app.blame[index].commit)?.parent_id(0)?;
+				app.blame = git::blame(&app.repo, app.filepath, parent)?;
+				app.blame_state = ListState::default();
+				app.commit = parent;
+			}
+		}
+		KeyEvent {
+			code: Char('q') | KeyCode::Esc,
+			..
+		} => {
+			if app.line_history.is_some() {
+				app.line_history = None
+			} else {
+				return Ok(false);
+			}
+		}
+		_ => {} // ignored
+	};
+	return Ok(true);
 }
 
 pub fn teardown(terminal: &mut CrosstermTerm) {
