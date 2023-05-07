@@ -16,12 +16,13 @@ fn main() {
 		Err(e) => panic!("{}", e),
 	};
 
-	let mut term = terminal::setup().unwrap();
-	let mut app = terminal::App::new(&repo, path);
-	app.blame = match git::blame(&repo, path, None) {
+	let head = repo.head().unwrap().target().unwrap();
+	let mut app = terminal::App::new(&repo, path, head);
+	app.blame = match git::blame(&repo, path, head) {
 		Ok(blame) => blame,
 		Err(e) => panic!("{}", e),
 	};
+	let mut term = terminal::setup().unwrap();
 	let res = terminal::run_app(&mut term, app);
 
 	terminal::teardown(&mut term);

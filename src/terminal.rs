@@ -7,7 +7,7 @@ use crossterm::{
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use git2::Repository;
+use git2::{Repository, Oid};
 use std::{
 	error::Error,
 	io::{self, Stdout},
@@ -29,16 +29,18 @@ pub struct App<'a> {
 	blame_state: ListState,
 	repo: &'a Repository,
 	filepath: &'a Path,
+	commit: Oid,
 	line_history: Option<Text<'static>>,
 }
 
 impl App<'_> {
-	pub fn new<'a>(repo: &'a Repository, filepath: &'a Path) -> App<'a> {
+	pub fn new<'a>(repo: &'a Repository, filepath: &'a Path, commit: Oid) -> App<'a> {
 		App {
 			blame: vec![],
 			blame_state: ListState::default(),
 			repo,
 			filepath,
+			commit,
 			line_history: None,
 		}
 	}
@@ -90,14 +92,15 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn
 					code: KeyCode::Enter, ..
 				} => {
 					if let Some(index) = app.blame_state.selected() {
-						app.line_history = Some(git::log_follow(app.repo, app.filepath, index));
+						app.line_history = Some(git::log_follow(app.repo, app.filepath, index, app.commit));
 					}
 				}
 				KeyEvent { code: Char('b'), .. } => {
 					if let Some(index) = app.blame_state.selected() {
 						let parent = app.repo.find_commit(app.blame[index].commit)?.parent_id(0)?;
-						app.blame = git::blame(&app.repo, app.filepath, Some(parent))?;
+						app.blame = git::blame(&app.repo, app.filepath, parent)?;
 						app.blame_state = ListState::default();
+						app.commit = parent;
 					}
 				}
 				KeyEvent {

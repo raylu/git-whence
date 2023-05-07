@@ -2,7 +2,6 @@ use ansi_to_tui::IntoText;
 use git2::{BlameOptions, Oid, Repository};
 use std::{
 	error,
-	fs::File,
 	io::{BufRead, BufReader},
 	path::Path,
 	process,
@@ -18,16 +17,21 @@ pub struct BlameLine {
 	pub commit: Oid,
 }
 
-pub fn blame(repo: &Repository, path: &Path, commit: Option<Oid>) -> Result<Vec<BlameLine>, Box<dyn error::Error>> {
+pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<BlameLine>, Box<dyn error::Error>> {
 	let repo_path = repo.workdir().unwrap();
 	let rel_path = path.strip_prefix(repo_path).unwrap();
+
 	let mut opts = BlameOptions::default();
-	if let Some(oid) = commit {
-		opts.newest_commit(oid);
-	}
+	opts.newest_commit(start_commit);
 	let blame = repo.blame_file(rel_path, Some(&mut opts))?;
 
-	let mut lines = BufReader::new(File::open(path)?).lines();
+	let blob = repo
+		.find_commit(start_commit)?
+		.tree()?
+		.get_path(rel_path)?
+		.to_object(repo)?;
+	let mut lines = BufReader::new(blob.as_blob().unwrap().content()).lines();
+
 	let mut out = vec![];
 	let mut line_num: usize = 1;
 	for b in blame.iter() {
@@ -61,7 +65,7 @@ pub fn blame(repo: &Repository, path: &Path, commit: Option<Oid>) -> Result<Vec<
 	Ok(out)
 }
 
-pub fn log_follow(repo: &Repository, path: &Path, line_num: usize) -> Text<'static> {
+pub fn log_follow(repo: &Repository, path: &Path, line_num: usize, start_commit: Oid) -> Text<'static> {
 	let repo_path = repo.workdir().unwrap();
 	let rel_path = path.strip_prefix(repo_path).unwrap();
 	let output = process::Command::new("git")
@@ -70,6 +74,7 @@ pub fn log_follow(repo: &Repository, path: &Path, line_num: usize) -> Text<'stat
 			"--color=always",
 			"-L",
 			&format!("{},{}:{}", line_num + 1, line_num + 1, rel_path.display()),
+			&start_commit.to_string(),
 		])
 		.current_dir(repo_path)
 		.output();
