@@ -18,7 +18,7 @@ use tui::{
 	layout::{Alignment, Constraint, Direction, Layout},
 	style::{Color, Modifier, Style},
 	text::{Span, Text},
-	widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+	widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 	Frame, Terminal,
 };
 
@@ -58,10 +58,22 @@ pub fn setup() -> Result<CrosstermTerm, Box<dyn Error>> {
 
 pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn Error>> {
 	loop {
-		terminal.draw(|f| ui(f, &mut app))?;
+		terminal.draw(|frame| ui(frame, &mut app))?;
 		if let Event::Key(key) = event::read()? {
-			if !handle_input(&key, &mut app)? {
-				return Ok(());
+			match handle_input(&key, &mut app) {
+				Ok(false) => {
+					return Ok(());
+				}
+				Ok(true) => {} // ignored
+				Err(err) => {
+					terminal.draw(|frame| {
+						frame.render_widget(
+							Paragraph::new(format!("{}", err)).wrap(Wrap { trim: false }),
+							tui::layout::Rect::new(0, 0, frame.size().width, 1),
+						);
+					})?;
+					while !std::matches!(event::read()?, Event::Key(_)) {} // wait until any input to clear error
+				}
 			}
 		}
 	}
