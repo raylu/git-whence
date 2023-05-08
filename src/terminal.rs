@@ -1,6 +1,6 @@
 use crossterm::{
 	event::{
-		self, DisableMouseCapture, EnableMouseCapture, Event,
+		self, Event,
 		KeyCode::{self, Char},
 		KeyEvent,
 	},
@@ -51,7 +51,7 @@ type CrosstermTerm = Terminal<CrosstermBackend<Stdout>>;
 pub fn setup() -> Result<CrosstermTerm, Box<dyn Error>> {
 	enable_raw_mode()?;
 	let mut stdout = io::stdout();
-	execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+	execute!(stdout, EnterAlternateScreen)?;
 	let backend = CrosstermBackend::new(stdout);
 	Ok(Terminal::new(backend)?)
 }
@@ -151,7 +151,7 @@ fn handle_input(key: &KeyEvent, app: &mut App) -> Result<bool, Box<dyn Error>> {
 
 pub fn teardown(terminal: &mut CrosstermTerm) {
 	_ = disable_raw_mode();
-	_ = execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture);
+	_ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
 	_ = terminal.show_cursor();
 }
 
