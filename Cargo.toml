@@ -9,4 +9,5 @@ edition = "2021"
 ansi-to-tui = "3"
 crossterm = "0.26"
 git2 = { version = "0.17", default-features = false }
+timeago = { version = "0.4", default-features = false }
 tui = { version = "0.20", package = "ratatui" }

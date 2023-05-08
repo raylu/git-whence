@@ -4,7 +4,7 @@ use std::{
 	error,
 	io::{BufRead, BufReader},
 	path::Path,
-	process,
+	process, time,
 };
 use tui::{
 	style::{Color, Style},
@@ -34,13 +34,18 @@ pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<Bl
 
 	let mut out = vec![];
 	let mut line_num: usize = 1;
+	let now = time::SystemTime::now();
+	let duration_formatter = timeago::Formatter::new();
 	for b in blame.iter() {
-		let mut commit = b.final_commit_id().to_string();
-		commit.truncate(8);
-		let author = format!(" {:12}", b.final_signature().name().unwrap_or_default());
+		let mut commit_id = b.final_commit_id().to_string();
+		commit_id.truncate(8);
+		let commit = repo.find_commit(b.final_commit_id())?;
+		let commit_time = time::UNIX_EPOCH + time::Duration::from_secs(commit.time().seconds().try_into().unwrap());
+		let time_display = duration_formatter.convert(now.duration_since(commit_time).unwrap_or_default());
 		let spans = Spans::from(vec![
-			Span::styled(commit, Style::default().fg(Color::Yellow)),
-			Span::raw(author),
+			Span::styled(commit_id, Style::default().fg(Color::Yellow)),
+			Span::raw(format!(" {:12}", b.final_signature().name().unwrap_or_default())),
+			Span::styled(format!(" {:13}", time_display), Style::default().fg(Color::LightRed)),
 			Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
 			Span::raw(lines.next().unwrap()?.replace('\t', "    ")),
 		]);
@@ -51,7 +56,7 @@ pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<Bl
 		line_num += 1;
 		for _ in 1..b.lines_in_hunk() {
 			let spans = Spans::from(vec![
-				Span::raw(" ".repeat(21)),
+				Span::raw(" ".repeat(35)),
 				Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
 				Span::raw(lines.next().unwrap()?.replace('\t', "    ")),
 			]);
