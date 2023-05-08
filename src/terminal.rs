@@ -15,7 +15,7 @@ use std::{
 };
 use tui::{
 	backend::{Backend, CrosstermBackend},
-	layout::{Alignment, Constraint, Direction, Layout},
+	layout::{Alignment, Constraint, Direction, Layout, Rect},
 	style::{Color, Modifier, Style},
 	text::{Span, Text},
 	widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
@@ -31,6 +31,7 @@ pub struct App<'a> {
 	filepath: &'a Path,
 	commit_stack: Vec<Oid>,
 	line_history: Option<Text<'static>>, // output of git -L
+	line_history_scroll: u16,
 }
 
 impl App<'_> {
@@ -42,6 +43,7 @@ impl App<'_> {
 			filepath,
 			commit_stack: vec![commit],
 			line_history: None,
+			line_history_scroll: 0,
 		}
 	}
 }
@@ -60,7 +62,7 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn
 	loop {
 		terminal.draw(|frame| ui(frame, &mut app))?;
 		if let Event::Key(key) = event::read()? {
-			match handle_input(&key, &mut app) {
+			match handle_input(&key, &mut app, &terminal.size()?) {
 				Ok(false) => {
 					return Ok(());
 				}
@@ -80,33 +82,49 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn
 }
 
 // returns whether to continue running the app
-fn handle_input(key: &KeyEvent, app: &mut App) -> Result<bool, Box<dyn Error>> {
+fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool, Box<dyn Error>> {
 	match key {
 		KeyEvent {
 			code: Char('j') | KeyCode::Down,
 			..
-		} => match app.blame_state.selected() {
-			Some(index) => {
-				if index < app.blame.len() - 1 {
-					app.blame_state.select(Some(index + 1));
+		} => match &app.line_history {
+			Some(line_history) => {
+				if usize::from(app.line_history_scroll + term_size.height) < line_history.height() {
+					app.line_history_scroll += 1;
 				}
 			}
 			None => {
-				app.blame_state.select(Some(0));
+				match app.blame_state.selected() {
+					Some(index) => {
+						if index < app.blame.len() - 1 {
+							app.blame_state.select(Some(index + 1));
+						}
+					}
+					None => {
+						app.blame_state.select(Some(0));
+					}
+				};
 			}
 		},
 		KeyEvent {
 			code: Char('k') | KeyCode::Up,
 			..
-		} => match app.blame_state.selected() {
-			Some(index) => {
-				if index > 0 {
-					app.blame_state.select(Some(index - 1));
+		} => match &app.line_history {
+			Some(_) => {
+				if app.line_history_scroll > 0 {
+					app.line_history_scroll -= 1;
 				}
 			}
-			None => {
-				app.blame_state.select(Some(0));
-			}
+			None => match app.blame_state.selected() {
+				Some(index) => {
+					if index > 0 {
+						app.blame_state.select(Some(index - 1));
+					}
+				}
+				None => {
+					app.blame_state.select(Some(0));
+				}
+			},
 		},
 		KeyEvent {
 			code: KeyCode::Enter, ..
@@ -139,7 +157,8 @@ fn handle_input(key: &KeyEvent, app: &mut App) -> Result<bool, Box<dyn Error>> {
 			..
 		} => {
 			if app.line_history.is_some() {
-				app.line_history = None
+				app.line_history = None;
+				app.line_history_scroll = 0;
 			} else {
 				return Ok(false);
 			}
@@ -180,7 +199,8 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 	if let Some(log) = &app.line_history {
 		let paragraph = Paragraph::new(log.clone())
 			.block(Block::default().borders(Borders::LEFT))
-			.alignment(Alignment::Left);
+			.alignment(Alignment::Left)
+			.scroll((app.line_history_scroll, 0));
 		frame.render_widget(paragraph, chunks[1]);
 	}
 }
