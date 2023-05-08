@@ -16,8 +16,8 @@ use std::{
 use tui::{
 	backend::{Backend, CrosstermBackend},
 	layout::{Alignment, Constraint, Direction, Layout},
-	style::{Color, Style},
-	text::Text,
+	style::{Color, Modifier, Style},
+	text::{Span, Text},
 	widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 	Frame, Terminal,
 };
@@ -29,8 +29,8 @@ pub struct App<'a> {
 	blame_state: ListState,
 	repo: &'a Repository,
 	filepath: &'a Path,
-	commit: Oid,
-	line_history: Option<Text<'static>>,
+	commit_stack: Vec<Oid>,
+	line_history: Option<Text<'static>>, // output of git -L
 }
 
 impl App<'_> {
@@ -40,7 +40,7 @@ impl App<'_> {
 			blame_state: ListState::default(),
 			repo,
 			filepath,
-			commit,
+			commit_stack: vec![commit],
 			line_history: None,
 		}
 	}
@@ -100,7 +100,8 @@ fn handle_input(key: &KeyEvent, app: &mut App) -> Result<bool, Box<dyn Error>> {
 			code: KeyCode::Enter, ..
 		} => {
 			if let Some(index) = app.blame_state.selected() {
-				app.line_history = Some(git::log_follow(app.repo, app.filepath, index, app.commit));
+				let commit = app.commit_stack.last().unwrap();
+				app.line_history = Some(git::log_follow(app.repo, app.filepath, index, *commit));
 			}
 		}
 		KeyEvent { code: Char('b'), .. } => {
@@ -108,7 +109,17 @@ fn handle_input(key: &KeyEvent, app: &mut App) -> Result<bool, Box<dyn Error>> {
 				let parent = app.repo.find_commit(app.blame[index].commit)?.parent_id(0)?;
 				app.blame = git::blame(&app.repo, app.filepath, parent)?;
 				app.blame_state.select(Some(index.min(app.blame.len())));
-				app.commit = parent;
+				app.commit_stack.push(parent);
+			}
+		}
+		KeyEvent { code: Char('B'), .. } => {
+			if app.commit_stack.len() > 1 {
+				app.commit_stack.pop();
+				let commit = app.commit_stack.last().unwrap();
+				app.blame = git::blame(&app.repo, app.filepath, *commit)?;
+				if let Some(index) = app.blame_state.selected() {
+					app.blame_state.select(Some(index.min(app.blame.len())));
+				}
 			}
 		}
 		KeyEvent {
@@ -145,7 +156,13 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 		.split(frame.size());
 
 	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.spans.clone())).collect();
-	let list = List::new(items).highlight_style(Style::default().bg(Color::DarkGray));
+	let title = Span::styled(
+		app.commit_stack.last().unwrap().to_string(),
+		Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+	);
+	let list = List::new(items)
+		.block(Block::default().title(title))
+		.highlight_style(Style::default().bg(Color::DarkGray));
 	frame.render_stateful_widget(list, chunks[0], &mut app.blame_state);
 
 	if let Some(log) = &app.line_history {
