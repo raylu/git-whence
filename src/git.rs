@@ -42,7 +42,7 @@ pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<Bl
 			Span::styled(commit, Style::default().fg(Color::Yellow)),
 			Span::raw(author),
 			Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
-			Span::raw(lines.next().unwrap()?),
+			Span::raw(lines.next().unwrap()?.replace('\t', "    ")),
 		]);
 		out.push(BlameLine {
 			spans,
@@ -53,7 +53,7 @@ pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<Bl
 			let spans = Spans::from(vec![
 				Span::raw(" ".repeat(21)),
 				Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
-				Span::raw(lines.next().unwrap()?),
+				Span::raw(lines.next().unwrap()?.replace('\t', "    ")),
 			]);
 			line_num += 1;
 			out.push(BlameLine {
