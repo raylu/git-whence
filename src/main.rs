@@ -8,6 +8,7 @@ fn main() {
 	let args: Vec<String> = env::args().collect();
 	if args.len() != 2 {
 		println!("usage: {} <filepath>", args[0].rsplit('/').next().unwrap());
+		return;
 	}
 	let path = Path::new(&args[1]);
 
