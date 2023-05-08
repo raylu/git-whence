@@ -72,6 +72,10 @@ pub fn log_follow(repo: &Repository, path: &Path, line_num: usize, start_commit:
 		.args([
 			"log",
 			"--color=always",
+			"--abbrev-commit",
+			"--decorate",
+			"--date=local",
+			"--find-copies",
 			"-L",
 			&format!("{},{}:{}", line_num + 1, line_num + 1, rel_path.display()),
 			&start_commit.to_string(),
