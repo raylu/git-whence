@@ -2,7 +2,7 @@ use crossterm::{
 	event::{
 		self, Event,
 		KeyCode::{self, Char},
-		KeyEvent,
+		KeyEvent, KeyModifiers,
 	},
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -87,45 +87,28 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 		KeyEvent {
 			code: Char('j') | KeyCode::Down,
 			..
-		} => match &app.line_history {
-			Some(line_history) => {
-				if usize::from(app.line_history_scroll + term_size.height) < line_history.height() {
-					app.line_history_scroll += 1;
-				}
-			}
-			None => {
-				match app.blame_state.selected() {
-					Some(index) => {
-						if index < app.blame.len() - 1 {
-							app.blame_state.select(Some(index + 1));
-						}
-					}
-					None => {
-						app.blame_state.select(Some(0));
-					}
-				};
-			}
-		},
+		} => scroll(app, term_size, 1),
 		KeyEvent {
 			code: Char('k') | KeyCode::Up,
 			..
-		} => match &app.line_history {
-			Some(_) => {
-				if app.line_history_scroll > 0 {
-					app.line_history_scroll -= 1;
-				}
-			}
-			None => match app.blame_state.selected() {
-				Some(index) => {
-					if index > 0 {
-						app.blame_state.select(Some(index - 1));
-					}
-				}
-				None => {
-					app.blame_state.select(Some(0));
-				}
-			},
-		},
+		} => scroll(app, term_size, -1),
+		KeyEvent {
+			modifiers: KeyModifiers::CONTROL,
+			code: Char('d'),
+			..
+		}
+		| KeyEvent {
+			code: KeyCode::PageDown,
+			..
+		} => scroll(app, term_size, (term_size.height / 2).try_into().unwrap()),
+		KeyEvent {
+			modifiers: KeyModifiers::CONTROL,
+			code: Char('u'),
+			..
+		}
+		| KeyEvent {
+			code: KeyCode::PageUp, ..
+		} => scroll(app, term_size, -i16::try_from(term_size.height / 2).unwrap()),
 		KeyEvent {
 			code: KeyCode::Enter, ..
 		} => {
@@ -166,6 +149,29 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 		_ => {} // ignored
 	};
 	return Ok(true);
+}
+
+fn scroll(app: &mut App, term_size: &Rect, amount: i16) {
+	match &app.line_history {
+		Some(line_history) => {
+			let max = u16::try_from(line_history.height())
+				.unwrap()
+				.checked_sub(term_size.height)
+				.unwrap_or(0);
+			app.line_history_scroll = app.line_history_scroll.saturating_add_signed(amount).clamp(0, max);
+		}
+		None => {
+			match app.blame_state.selected() {
+				Some(index) => {
+					let new_index = index.saturating_add_signed(amount.into());
+					app.blame_state.select(Some(new_index.clamp(0, app.blame.len() - 1)));
+				}
+				None => {
+					app.blame_state.select(Some(0));
+				}
+			};
+		}
+	}
 }
 
 pub fn teardown(terminal: &mut CrosstermTerm) {
