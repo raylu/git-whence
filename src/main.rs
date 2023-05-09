@@ -10,7 +10,8 @@ fn main() {
 		println!("usage: {} <filepath>", args[0].rsplit('/').next().unwrap());
 		return;
 	}
-	let path = Path::new(&args[1]);
+	let abs_path_buf = Path::new(&args[1]).canonicalize().unwrap();
+	let path = abs_path_buf.as_path();
 
 	let repo = match Repository::discover(path) {
 		Ok(repo) => repo,
