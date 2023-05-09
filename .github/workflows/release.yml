@@ -1,0 +1,64 @@
+name: release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: release ${{ matrix.config.target }}
+    strategy:
+      matrix:
+        config:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            suffix:
+
+          - os: macOS-latest
+            target: x86_64-apple-darwin
+            suffix:
+
+          - os: macOS-latest
+            target: aarch64-apple-darwin
+            suffix:
+
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            suffix: .exe
+
+    runs-on: ${{ matrix.config.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - id: get_release
+        uses: bruceadams/get-release@v1.3.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: get version name from tag
+        shell: bash
+        if: env.VERSION_NAME == ''
+        run: |
+          TAG="${{ steps.get_release.outputs.tag_name }}"
+          echo "VERSION_NAME=${TAG#v}" >> $GITHUB_ENV
+
+      - uses: houseabsolute/actions-rust-cross@v0
+        with:
+          target: ${{ matrix.config.target }}
+          args: "--locked --release"
+          strip: true
+
+      - uses: sekwah41/upload-release-assets@v1.1.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: target/${{ matrix.config.target }}/release/git-who${{ matrix.config.suffix }}
+          asset_name: git-who-${{ env.VERSION_NAME }}-${{ matrix.config.target }}${{ matrix.config.suffix }}
+          asset_content_type: application/octet-stream
