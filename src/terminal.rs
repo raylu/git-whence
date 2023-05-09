@@ -120,7 +120,7 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 		KeyEvent { code: Char('b'), .. } => {
 			if let Some(index) = app.blame_state.selected() {
 				let parent = app.repo.find_commit(app.blame[index].commit)?.parent_id(0)?;
-				app.blame = git::blame(&app.repo, app.filepath, parent)?;
+				app.blame = git::blame(app.repo, app.filepath, parent)?;
 				app.blame_state.select(Some(index.min(app.blame.len())));
 				app.commit_stack.push(parent);
 			}
@@ -129,7 +129,7 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			if app.commit_stack.len() > 1 {
 				app.commit_stack.pop();
 				let commit = app.commit_stack.last().unwrap();
-				app.blame = git::blame(&app.repo, app.filepath, *commit)?;
+				app.blame = git::blame(app.repo, app.filepath, *commit)?;
 				if let Some(index) = app.blame_state.selected() {
 					app.blame_state.select(Some(index.min(app.blame.len())));
 				}
@@ -148,7 +148,7 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 		}
 		_ => {} // ignored
 	};
-	return Ok(true);
+	Ok(true)
 }
 
 fn scroll(app: &mut App, term_size: &Rect, amount: i16) {
@@ -156,8 +156,7 @@ fn scroll(app: &mut App, term_size: &Rect, amount: i16) {
 		Some(line_history) => {
 			let max = u16::try_from(line_history.height())
 				.unwrap()
-				.checked_sub(term_size.height)
-				.unwrap_or(0);
+				.saturating_sub(term_size.height);
 			app.line_history_scroll = app.line_history_scroll.saturating_add_signed(amount).clamp(0, max);
 		}
 		None => {
@@ -181,12 +180,11 @@ pub fn teardown(terminal: &mut CrosstermTerm) {
 }
 
 fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
-	let constraints: &[Constraint];
-	if app.line_history.is_none() {
-		constraints = [Constraint::Percentage(100)].as_ref();
+	let constraints = if app.line_history.is_none() {
+		[Constraint::Percentage(100)].as_ref()
 	} else {
-		constraints = [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref();
-	}
+		[Constraint::Percentage(50), Constraint::Percentage(50)].as_ref()
+	};
 	let chunks = Layout::default()
 		.direction(Direction::Horizontal)
 		.constraints(constraints)
