@@ -24,6 +24,10 @@ jobs:
             target: x86_64-apple-darwin
             suffix:
 
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            suffix:
+
           - os: macOS-latest
             target: aarch64-apple-darwin
             suffix:
@@ -41,13 +45,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      - name: get version name from tag
-        shell: bash
-        if: env.VERSION_NAME == ''
-        run: |
-          TAG="${{ steps.get_release.outputs.tag_name }}"
-          echo "VERSION_NAME=${TAG#v}" >> $GITHUB_ENV
-
       - uses: houseabsolute/actions-rust-cross@v0
         with:
           target: ${{ matrix.config.target }}
@@ -60,5 +57,5 @@ jobs:
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: target/${{ matrix.config.target }}/release/git-who${{ matrix.config.suffix }}
-          asset_name: git-who-${{ env.VERSION_NAME }}-${{ matrix.config.target }}${{ matrix.config.suffix }}
+          asset_name: git-who-${{ matrix.config.target }}${{ matrix.config.suffix }}
           asset_content_type: application/octet-stream
