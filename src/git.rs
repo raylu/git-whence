@@ -39,12 +39,12 @@ pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<Bl
 	for b in blame.iter() {
 		let mut commit_id = b.final_commit_id().to_string();
 		commit_id.truncate(8);
-		let commit = repo.find_commit(b.final_commit_id())?;
-		let commit_time = time::UNIX_EPOCH + time::Duration::from_secs(commit.time().seconds().try_into().unwrap());
+		let signature = b.final_signature();
+		let commit_time = time::UNIX_EPOCH + time::Duration::from_secs(signature.when().seconds().try_into().unwrap());
 		let time_display = duration_formatter.convert(now.duration_since(commit_time).unwrap_or_default());
 		let mut spans = vec![
 			Span::styled(commit_id, Style::default().fg(Color::Yellow)),
-			Span::raw(format!(" {:12}", b.final_signature().name().unwrap_or_default())),
+			Span::raw(format!(" {:12}", signature.name().unwrap_or_default())),
 			Span::styled(format!(" {:13}", time_display), Style::default().fg(Color::LightRed)),
 		];
 		spans.append(&mut format_line_num_and_code(line_num, &lines.next().unwrap()?));
