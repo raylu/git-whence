@@ -121,7 +121,7 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			if let Some(index) = app.blame_state.selected() {
 				let parent = app.repo.find_commit(app.blame[index].commit)?.parent_id(0)?;
 				app.blame = git::blame(app.repo, app.filepath, parent)?;
-				app.blame_state.select(Some(index.min(app.blame.len())));
+				app.blame_state.select(Some(index.min(app.blame.len() - 1)));
 				app.commit_stack.push(parent);
 			}
 		}
@@ -131,7 +131,7 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 				let commit = app.commit_stack.last().unwrap();
 				app.blame = git::blame(app.repo, app.filepath, *commit)?;
 				if let Some(index) = app.blame_state.selected() {
-					app.blame_state.select(Some(index.min(app.blame.len())));
+					app.blame_state.select(Some(index.min(app.blame.len() - 1)));
 				}
 			}
 		}
