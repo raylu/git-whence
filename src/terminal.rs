@@ -11,13 +11,13 @@ use git2::{Oid, Repository};
 use std::{
 	error::Error,
 	io::{self, Stdout},
-	path::Path,
+	path::{Path, PathBuf},
 };
 use tui::{
 	backend::{Backend, CrosstermBackend},
 	layout::{Alignment, Constraint, Direction, Layout, Rect},
 	style::{Color, Modifier, Style},
-	text::{Span, Text},
+	text::{Span, Spans, Text},
 	widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 	Frame, Terminal,
 };
@@ -25,23 +25,29 @@ use tui::{
 use crate::git;
 
 pub struct App<'a> {
-	pub blame: Vec<git::BlameLine>,
+	pub blame: Vec<git::BlameLine<'a>>,
 	blame_state: ListState,
 	repo: &'a Repository,
-	filepath: &'a Path,
-	commit_stack: Vec<Oid>,
+	commit_stack: Vec<CommitPath>,       // pushed by `b`, popped by `B`
 	line_history: Option<Text<'static>>, // output of git -L
 	line_history_scroll: u16,
 }
 
+struct CommitPath {
+	commit: Oid,
+	path: PathBuf,
+}
+
 impl App<'_> {
-	pub fn new<'a>(repo: &'a Repository, filepath: &'a Path, commit: Oid) -> App<'a> {
+	pub fn new<'a>(repo: &'a Repository, rel_path: &'a Path, commit: Oid) -> App<'a> {
 		App {
 			blame: vec![],
 			blame_state: ListState::default(),
 			repo,
-			filepath,
-			commit_stack: vec![commit],
+			commit_stack: vec![CommitPath {
+				commit,
+				path: rel_path.to_owned(),
+			}],
 			line_history: None,
 			line_history_scroll: 0,
 		}
@@ -113,23 +119,31 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			code: KeyCode::Enter, ..
 		} => {
 			if let Some(index) = app.blame_state.selected() {
-				let commit = app.commit_stack.last().unwrap();
-				app.line_history = Some(git::log_follow(app.repo, app.filepath, index, *commit));
+				let commit_path = app.commit_stack.last().unwrap();
+				app.line_history = Some(git::log_follow(app.repo, &commit_path.path, index, commit_path.commit));
 			}
 		}
 		KeyEvent { code: Char('b'), .. } => {
 			if let Some(index) = app.blame_state.selected() {
-				let parent = app.repo.find_commit(app.blame[index].commit)?.parent_id(0)?;
-				app.blame = git::blame(app.repo, app.filepath, parent)?;
+				let blame = &app.blame[index];
+				let parent = app.repo.find_commit(blame.commit)?.parent_id(0)?;
+				let line_path = match blame.path.to_owned() {
+					Some(p) => p,
+					None => app.commit_stack.last().unwrap().path.to_owned(),
+				};
+				app.blame = git::blame(app.repo, &line_path, parent)?;
 				app.blame_state.select(Some(index.min(app.blame.len() - 1)));
-				app.commit_stack.push(parent);
+				app.commit_stack.push(CommitPath {
+					commit: parent,
+					path: line_path,
+				});
 			}
 		}
 		KeyEvent { code: Char('B'), .. } => {
 			if app.commit_stack.len() > 1 {
 				app.commit_stack.pop();
-				let commit = app.commit_stack.last().unwrap();
-				app.blame = git::blame(app.repo, app.filepath, *commit)?;
+				let commit_path = app.commit_stack.last().unwrap();
+				app.blame = git::blame(app.repo, &commit_path.path, commit_path.commit)?;
 				if let Some(index) = app.blame_state.selected() {
 					app.blame_state.select(Some(index.min(app.blame.len() - 1)));
 				}
@@ -191,10 +205,18 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 		.split(frame.size());
 
 	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.spans.clone())).collect();
-	let title = Span::styled(
-		app.commit_stack.last().unwrap().to_string(),
-		Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-	);
+	let commit_path = app.commit_stack.last().unwrap();
+	let title = Spans::from(vec![
+		Span::styled(
+			commit_path.commit.to_string(),
+			Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+		),
+		Span::raw(" "),
+		Span::styled(
+			commit_path.path.to_str().unwrap(),
+			Style::default().fg(Color::LightBlue).add_modifier(Modifier::BOLD),
+		),
+	]);
 	let list = List::new(items)
 		.block(Block::default().title(title))
 		.highlight_style(Style::default().bg(Color::Black));

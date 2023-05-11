@@ -3,7 +3,7 @@ use git2::{BlameOptions, Oid, Repository};
 use std::{
 	error,
 	io::{BufRead, BufReader},
-	path::Path,
+	path::{Path, PathBuf},
 	process, time,
 };
 use tui::{
@@ -12,15 +12,17 @@ use tui::{
 };
 
 #[derive(Debug)]
-pub struct BlameLine {
-	pub spans: Spans<'static>,
+pub struct BlameLine<'a> {
+	pub spans: Spans<'a>,
 	pub commit: Oid,
+	pub path: Option<PathBuf>,
 }
 
-pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<BlameLine>, Box<dyn error::Error>> {
-	let repo_path = repo.workdir().unwrap();
-	let rel_path = path.strip_prefix(repo_path).unwrap();
-
+pub fn blame<'a>(
+	repo: &'a Repository,
+	rel_path: &Path,
+	start_commit: Oid,
+) -> Result<Vec<BlameLine<'a>>, Box<dyn error::Error>> {
 	let mut opts = BlameOptions::default();
 	opts.newest_commit(start_commit);
 	let blame = repo.blame_file(rel_path, Some(&mut opts))?;
@@ -48,9 +50,11 @@ pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<Bl
 			Span::styled(format!(" {:13}", time_display), Style::default().fg(Color::LightRed)),
 		];
 		spans.append(&mut format_line_num_and_code(line_num, &lines.next().unwrap()?));
+		let line_path = b.path().map(|p| p.to_owned());
 		out.push(BlameLine {
 			spans: Spans::from(spans),
 			commit: b.final_commit_id(),
+			path: line_path.clone(),
 		});
 		line_num += 1;
 		for _ in 1..b.lines_in_hunk() {
@@ -59,6 +63,7 @@ pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<Bl
 			out.push(BlameLine {
 				spans: Spans::from(spans),
 				commit: b.final_commit_id(),
+				path: line_path.clone(),
 			});
 			line_num += 1;
 		}
@@ -73,9 +78,8 @@ fn format_line_num_and_code(line_num: usize, line: &str) -> Vec<Span<'static>> {
 	]
 }
 
-pub fn log_follow(repo: &Repository, path: &Path, line_num: usize, start_commit: Oid) -> Text<'static> {
+pub fn log_follow(repo: &Repository, rel_path: &Path, line_num: usize, start_commit: Oid) -> Text<'static> {
 	let repo_path = repo.workdir().unwrap();
-	let rel_path = path.strip_prefix(repo_path).unwrap();
 	let output = process::Command::new("git")
 		.args([
 			"log",

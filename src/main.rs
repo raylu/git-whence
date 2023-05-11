@@ -11,16 +11,17 @@ fn main() {
 		return;
 	}
 	let abs_path_buf = Path::new(&args[1]).canonicalize().unwrap();
-	let path = abs_path_buf.as_path();
+	let abs_path = abs_path_buf.as_path();
 
-	let repo = match Repository::discover(path) {
+	let repo = match Repository::discover(abs_path) {
 		Ok(repo) => repo,
 		Err(e) => panic!("{}", e),
 	};
+	let rel_path = abs_path.strip_prefix(repo.workdir().unwrap()).unwrap();
 
 	let head = repo.head().unwrap().target().unwrap();
-	let mut app = terminal::App::new(&repo, path, head);
-	app.blame = match git::blame(&repo, path, head) {
+	let mut app = terminal::App::new(&repo, rel_path, head);
+	app.blame = match git::blame(&repo, rel_path, head) {
 		Ok(blame) => blame,
 		Err(e) => panic!("{}", e),
 	};
