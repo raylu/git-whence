@@ -42,32 +42,35 @@ pub fn blame(repo: &Repository, path: &Path, start_commit: Oid) -> Result<Vec<Bl
 		let commit = repo.find_commit(b.final_commit_id())?;
 		let commit_time = time::UNIX_EPOCH + time::Duration::from_secs(commit.time().seconds().try_into().unwrap());
 		let time_display = duration_formatter.convert(now.duration_since(commit_time).unwrap_or_default());
-		let spans = Spans::from(vec![
+		let mut spans = vec![
 			Span::styled(commit_id, Style::default().fg(Color::Yellow)),
 			Span::raw(format!(" {:12}", b.final_signature().name().unwrap_or_default())),
 			Span::styled(format!(" {:13}", time_display), Style::default().fg(Color::LightRed)),
-			Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
-			Span::raw(lines.next().unwrap()?.replace('\t', "    ")),
-		]);
+		];
+		spans.append(&mut format_line_num_and_code(line_num, &lines.next().unwrap()?));
 		out.push(BlameLine {
-			spans,
+			spans: Spans::from(spans),
 			commit: b.final_commit_id(),
 		});
 		line_num += 1;
 		for _ in 1..b.lines_in_hunk() {
-			let spans = Spans::from(vec![
-				Span::raw(" ".repeat(35)),
-				Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
-				Span::raw(lines.next().unwrap()?.replace('\t', "    ")),
-			]);
-			line_num += 1;
+			let mut spans = vec![Span::raw(" ".repeat(35))];
+			spans.append(&mut format_line_num_and_code(line_num, &lines.next().unwrap()?));
 			out.push(BlameLine {
-				spans,
+				spans: Spans::from(spans),
 				commit: b.final_commit_id(),
 			});
+			line_num += 1;
 		}
 	}
 	Ok(out)
+}
+
+fn format_line_num_and_code(line_num: usize, line: &str) -> Vec<Span<'static>> {
+	vec![
+		Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
+		Span::raw(line.replace('\t', "    ")),
+	]
 }
 
 pub fn log_follow(repo: &Repository, path: &Path, line_num: usize, start_commit: Oid) -> Text<'static> {
