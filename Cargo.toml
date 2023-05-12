@@ -1,7 +1,13 @@
 [package]
-name = "git-who"
+name = "git-whence"
+description = "interactive git reblame"
 version = "0.1.2"
 edition = "2021"
+repository = "https://github.com/raylu/git-whence"
+readme = "readme.md"
+keywords = ["git-blame"]
+categories = ["command-line-utilities"]
+license = "blessing"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
