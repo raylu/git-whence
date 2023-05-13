@@ -39,15 +39,19 @@ pub fn blame<'a>(
 	let now = time::SystemTime::now();
 	let duration_formatter = timeago::Formatter::new();
 	for b in blame.iter() {
-		let mut commit_id = b.final_commit_id().to_string();
-		commit_id.truncate(8);
 		let signature = b.final_signature();
 		let commit_time = time::UNIX_EPOCH + time::Duration::from_secs(signature.when().seconds().try_into().unwrap());
 		let time_display = duration_formatter.convert(now.duration_since(commit_time).unwrap_or_default());
 		let mut spans = vec![
-			Span::styled(commit_id, Style::default().fg(Color::Yellow)),
-			Span::raw(format!(" {:12}", signature.name().unwrap_or_default())),
-			Span::styled(format!(" {:13}", time_display), Style::default().fg(Color::LightRed)),
+			Span::styled(
+				format!("{:.8}", b.final_commit_id()),
+				Style::default().fg(Color::Yellow),
+			),
+			Span::raw(format!(" {}", fmt_width(signature.name().unwrap_or_default(), 12))),
+			Span::styled(
+				format!(" {}", fmt_width(&time_display, 13)),
+				Style::default().fg(Color::LightRed),
+			),
 		];
 		spans.append(&mut format_line_num_and_code(line_num, &lines.next().unwrap()?));
 		let line_path = b.path().map(|p| p.to_owned());
@@ -69,6 +73,18 @@ pub fn blame<'a>(
 		}
 	}
 	Ok(out)
+}
+
+fn fmt_width(s: &str, width: usize) -> String {
+	let mut out = String::new();
+	match s.char_indices().nth(width) {
+		None => out.push_str(s),
+		Some((i, _)) => out.push_str(&s[..i]),
+	};
+	if out.len() < width {
+		out.push_str(&" ".repeat(width - out.len()));
+	}
+	out
 }
 
 fn format_line_num_and_code(line_num: usize, line: &str) -> Vec<Span<'static>> {
