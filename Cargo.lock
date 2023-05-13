@@ -87,6 +87,7 @@ dependencies = [
  "ansi-to-tui",
  "crossterm",
  "git2",
+ "nom",
  "ratatui",
  "timeago",
 ]

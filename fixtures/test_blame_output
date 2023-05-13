@@ -1,0 +1,41 @@
+116aa62bf54a39697e25f21d6cf6799f7faa1349 2 1 5
+author Georg Brandl
+author-mail <georg@python.org>
+author-time 1187188102
+author-tz +0000
+committer Georg Brandl
+committer-mail <georg@python.org>
+committer-time 1187188102
+committer-tz +0000
+summary Move the 3k reST doc tree in place.
+filename Doc/library/gc.rst
+	:mod:`gc` --- Garbage Collector interface
+116aa62bf54a39697e25f21d6cf6799f7faa1349 3 2
+	=========================================
+116aa62bf54a39697e25f21d6cf6799f7faa1349 4 3
+	
+116aa62bf54a39697e25f21d6cf6799f7faa1349 5 4
+	.. module:: gc
+116aa62bf54a39697e25f21d6cf6799f7faa1349 6 5
+	   :synopsis: Interface to the cycle-detecting garbage collector.
+fa089b9b0b926c04e5d57812b7d7653472787965 6 6 1
+author Terry Jan Reedy
+author-mail <tjreedy@udel.edu>
+author-time 1465671774
+author-tz -0400
+committer Terry Jan Reedy
+committer-mail <tjreedy@udel.edu>
+committer-time 1465671774
+committer-tz -0400
+summary Issue #22558: Add remaining doc links to source code for Python-coded modules.
+previous c92bf83a829956e683a3d6bb1ae65aed74d7b92a Doc/library/gc.rst
+filename Doc/library/gc.rst
+	
+116aa62bf54a39697e25f21d6cf6799f7faa1349 7 7 3
+	.. moduleauthor:: Neil Schemenauer <nas@arctrix.com>
+116aa62bf54a39697e25f21d6cf6799f7faa1349 8 8
+	.. sectionauthor:: Neil Schemenauer <nas@arctrix.com>
+116aa62bf54a39697e25f21d6cf6799f7faa1349 9 9
+	
+fa089b9b0b926c04e5d57812b7d7653472787965 10 10 1
+	--------------

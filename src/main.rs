@@ -5,6 +5,7 @@ use std::{
 };
 
 mod git;
+mod git_blame_porcelain;
 mod terminal;
 
 fn main() {
