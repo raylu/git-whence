@@ -17,5 +17,8 @@ jobs:
     - uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: 'true'
+    - run: cargo test --locked --no-fail-fast -- --nocapture
+      env:
+        RUST_BACKTRACE: 1
     - run: cargo clippy --no-deps -- -D warnings
     - run: cargo fmt --all --check
