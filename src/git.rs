@@ -1,10 +1,9 @@
 use ansi_to_tui::IntoText;
-use git2::{BlameOptions, Oid, Repository};
+use git2::{Oid, Repository};
 use std::{
 	error,
-	io::{BufRead, BufReader},
 	path::{Path, PathBuf},
-	process, time,
+	process, time, vec,
 };
 use tui::{
 	style::{Color, Style},
@@ -23,53 +22,52 @@ pub fn blame<'a>(
 	rel_path: &Path,
 	start_commit: Oid,
 ) -> Result<Vec<BlameLine<'a>>, Box<dyn error::Error>> {
-	let mut opts = BlameOptions::default();
-	opts.newest_commit(start_commit);
-	let blame = repo.blame_file(rel_path, Some(&mut opts))?;
-
-	let blob = repo
-		.find_commit(start_commit)?
-		.tree()?
-		.get_path(rel_path)?
-		.to_object(repo)?;
-	let mut lines = BufReader::new(blob.as_blob().unwrap().content()).lines();
+	let output = process::Command::new("git")
+		.args([
+			"blame",
+			"--porcelain",
+			rel_path.to_str().unwrap(),
+			&start_commit.to_string(),
+		])
+		.current_dir(repo.path())
+		.output()?;
+	if !output.status.success() {
+		return Err(std::str::from_utf8(&output.stderr)?.into());
+	}
+	let blame_output = std::str::from_utf8(&output.stdout)?;
+	let blame = crate::git_blame_porcelain::parse_blame_porcelain(blame_output)?;
 
 	let mut out = vec![];
-	let mut line_num: usize = 1;
 	let now = time::SystemTime::now();
 	let duration_formatter = timeago::Formatter::new();
-	for b in blame.iter() {
-		let signature = b.final_signature();
-		let commit_time = time::UNIX_EPOCH + time::Duration::from_secs(signature.when().seconds().try_into().unwrap());
+	for b in blame {
+		let commit_time = b.info.commit_time;
 		let time_display = duration_formatter.convert(now.duration_since(commit_time).unwrap_or_default());
 		let mut spans = vec![
-			Span::styled(
-				format!("{:.8}", b.final_commit_id()),
-				Style::default().fg(Color::Yellow),
-			),
-			Span::raw(format!(" {}", fmt_width(signature.name().unwrap_or_default(), 12))),
+			Span::styled(format!("{:.8}", b.commit), Style::default().fg(Color::Yellow)),
+			Span::raw(format!(" {}", fmt_width(b.info.author, 12))),
 			Span::styled(
 				format!(" {}", fmt_width(&time_display, 13)),
 				Style::default().fg(Color::LightRed),
 			),
 		];
-		spans.append(&mut format_line_num_and_code(line_num, &lines.next().unwrap()?));
-		let line_path = b.path().map(|p| p.to_owned());
+		spans.append(&mut format_line_num_and_code(b.line_num, b.code[0]));
+		let line_path = b.info.path;
 		out.push(BlameLine {
 			spans: Spans::from(spans),
-			commit: b.final_commit_id(),
-			path: line_path.clone(),
+			commit: Oid::from_str(b.commit)?,
+			path: line_path.map(|p| p.to_owned()),
 		});
-		line_num += 1;
-		for _ in 1..b.lines_in_hunk() {
+
+		for i in 1..b.code.len() {
 			let mut spans = vec![Span::raw(" ".repeat(35))];
-			spans.append(&mut format_line_num_and_code(line_num, &lines.next().unwrap()?));
+			let line_num = b.line_num + i32::try_from(i).unwrap();
+			spans.append(&mut format_line_num_and_code(line_num, b.code[i]));
 			out.push(BlameLine {
 				spans: Spans::from(spans),
-				commit: b.final_commit_id(),
-				path: line_path.clone(),
+				commit: Oid::from_str(b.commit)?,
+				path: line_path.map(|p| p.to_owned()),
 			});
-			line_num += 1;
 		}
 	}
 	Ok(out)
@@ -87,7 +85,7 @@ fn fmt_width(s: &str, width: usize) -> String {
 	out
 }
 
-fn format_line_num_and_code(line_num: usize, line: &str) -> Vec<Span<'static>> {
+fn format_line_num_and_code(line_num: i32, line: &str) -> Vec<Span<'static>> {
 	vec![
 		Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
 		Span::raw(line.replace('\t', "    ")),
