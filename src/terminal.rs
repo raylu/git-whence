@@ -18,7 +18,7 @@ use tui::{
 	layout::{Alignment, Constraint, Direction, Layout, Rect},
 	style::{Color, Modifier, Style},
 	text::{Span, Spans, Text},
-	widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+	widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
 	Frame, Terminal,
 };
 
@@ -31,6 +31,7 @@ pub struct App<'a> {
 	commit_stack: Vec<CommitPath>,       // pushed by `b`, popped by `B`
 	line_history: Option<Text<'static>>, // output of git -L
 	line_history_scroll: u16,
+	popup: Option<Text<'static>>,
 }
 
 struct CommitPath {
@@ -50,6 +51,7 @@ impl App<'_> {
 			}],
 			line_history: None,
 			line_history_scroll: 0,
+			popup: None,
 		}
 	}
 }
@@ -73,15 +75,7 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn
 					return Ok(());
 				}
 				Ok(true) => {} // ignored
-				Err(err) => {
-					terminal.draw(|frame| {
-						frame.render_widget(
-							Paragraph::new(format!("{}", err)).wrap(Wrap { trim: false }),
-							tui::layout::Rect::new(0, 0, frame.size().width, 1),
-						);
-					})?;
-					while !std::matches!(event::read()?, Event::Key(_)) {} // wait until any input to clear error
-				}
+				Err(err) => app.popup = Some(format!("{}", err).into()),
 			}
 		}
 	}
@@ -89,6 +83,12 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn
 
 // returns whether to continue running the app
 fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool, Box<dyn Error>> {
+	if app.popup.is_some() {
+		// clear the popup on any key press
+		app.popup = None;
+		return Ok(true);
+	}
+
 	match key {
 		// scroll
 		KeyEvent {
@@ -238,4 +238,40 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 			.scroll((app.line_history_scroll, 0));
 		frame.render_widget(paragraph, chunks[1]);
 	}
+
+	if let Some(popup) = &app.popup {
+		let paragraph = Paragraph::new(popup.clone())
+			.wrap(Wrap { trim: false })
+			.block(Block::default().borders(Borders::ALL));
+		let area = centered_rect(80, 80, frame.size());
+		frame.render_widget(Clear, area);
+		frame.render_widget(paragraph, area);
+	}
+}
+
+// from https://github.com/tui-rs-revival/ratatui/blob/main/examples/popup.rs
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+	let popup_layout = Layout::default()
+		.direction(Direction::Vertical)
+		.constraints(
+			[
+				Constraint::Percentage((100 - percent_y) / 2),
+				Constraint::Percentage(percent_y),
+				Constraint::Percentage((100 - percent_y) / 2),
+			]
+			.as_ref(),
+		)
+		.split(r);
+
+	Layout::default()
+		.direction(Direction::Horizontal)
+		.constraints(
+			[
+				Constraint::Percentage((100 - percent_x) / 2),
+				Constraint::Percentage(percent_x),
+				Constraint::Percentage((100 - percent_x) / 2),
+			]
+			.as_ref(),
+		)
+		.split(popup_layout[1])[1]
 }
