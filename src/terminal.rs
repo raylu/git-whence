@@ -66,6 +66,12 @@ pub fn setup() -> Result<CrosstermTerm, Box<dyn Error>> {
 	Ok(Terminal::new(backend)?)
 }
 
+pub fn teardown(terminal: &mut CrosstermTerm) {
+	_ = disable_raw_mode();
+	_ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
+	_ = terminal.show_cursor();
+}
+
 pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn Error>> {
 	loop {
 		terminal.draw(|frame| ui(frame, &mut app))?;
@@ -158,6 +164,7 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 				}
 			}
 		}
+		KeyEvent { code: Char('h'), .. } => app.popup = Some(make_help_text()),
 		KeyEvent {
 			code: Char('q') | KeyCode::Esc,
 			..
@@ -196,10 +203,27 @@ fn scroll(app: &mut App, term_size: &Rect, amount: i16) {
 	}
 }
 
-pub fn teardown(terminal: &mut CrosstermTerm) {
-	_ = disable_raw_mode();
-	_ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
-	_ = terminal.show_cursor();
+fn make_help_text() -> Text<'static> {
+	let mut help = vec![
+		"h           this help",
+		"q  esc      close window",
+		"",
+		"    moving",
+		"",
+		"j  ↓        down one line",
+		"k  ↑        up one line",
+		"d  pgdown   down half a window",
+		"u  pgup     up half a window",
+		"G  end      to last line",
+		"g  home     to first line",
+		"",
+		"    git",
+		"",
+		"enter       trace line through history (git -L)",
+		"b           reblame line at parent commit",
+		"B           undo/pop blame stack",
+	];
+	(help.drain(..).map(Spans::from).collect::<Vec<_>>()).into()
 }
 
 fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
@@ -240,12 +264,17 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 	}
 
 	if let Some(popup) = &app.popup {
-		let paragraph = Paragraph::new(popup.clone())
-			.wrap(Wrap { trim: false })
-			.block(Block::default().borders(Borders::ALL));
+		let paragraph = Paragraph::new(popup.clone()).wrap(Wrap { trim: false });
 		let area = centered_rect(80, 80, frame.size());
 		frame.render_widget(Clear, area);
-		frame.render_widget(paragraph, area);
+		frame.render_widget(Block::default().borders(Borders::all()), area);
+		frame.render_widget(
+			paragraph,
+			area.inner(&tui::layout::Margin {
+				vertical: 2,
+				horizontal: 3,
+			}),
+		);
 	}
 }
 
