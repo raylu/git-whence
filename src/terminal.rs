@@ -2,7 +2,7 @@ use crossterm::{
 	event::{
 		self, Event,
 		KeyCode::{self, Char},
-		KeyEvent, KeyModifiers,
+		KeyEvent,
 	},
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -90,6 +90,7 @@ pub fn run_app(terminal: &mut CrosstermTerm, mut app: App) -> Result<(), Box<dyn
 // returns whether to continue running the app
 fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool, Box<dyn Error>> {
 	match key {
+		// scroll
 		KeyEvent {
 			code: Char('j') | KeyCode::Down,
 			..
@@ -98,23 +99,31 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			code: Char('k') | KeyCode::Up,
 			..
 		} => scroll(app, term_size, -1),
-		KeyEvent {
-			modifiers: KeyModifiers::CONTROL,
-			code: Char('d'),
-			..
-		}
+		KeyEvent { code: Char('d'), .. }
 		| KeyEvent {
 			code: KeyCode::PageDown,
 			..
 		} => scroll(app, term_size, (term_size.height / 2).try_into().unwrap()),
-		KeyEvent {
-			modifiers: KeyModifiers::CONTROL,
-			code: Char('u'),
-			..
-		}
+		KeyEvent { code: Char('u'), .. }
 		| KeyEvent {
 			code: KeyCode::PageUp, ..
 		} => scroll(app, term_size, -i16::try_from(term_size.height / 2).unwrap()),
+		KeyEvent { code: Char('g'), .. }
+		| KeyEvent {
+			code: KeyCode::Home, ..
+		} => match &app.line_history {
+			Some(_) => app.line_history_scroll = 0,
+			None => app.blame_state.select(Some(0)),
+		},
+		KeyEvent { code: Char('G'), .. } | KeyEvent { code: KeyCode::End, .. } => match &app.line_history {
+			Some(line_history) => {
+				app.line_history_scroll = u16::try_from(line_history.height())
+					.unwrap()
+					.saturating_sub(term_size.height)
+			}
+			None => app.blame_state.select(Some(app.blame.len() - 1)),
+		},
+		// other interactions
 		KeyEvent {
 			code: KeyCode::Enter, ..
 		} => {
