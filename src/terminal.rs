@@ -252,7 +252,7 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 	]);
 	let list = List::new(items)
 		.block(Block::default().title(title))
-		.highlight_style(Style::default().bg(Color::Black));
+		.highlight_style(Style::default().bg(Color::Indexed(237))); // 232 is black, 255 is white; 237 is dark gray
 	frame.render_stateful_widget(list, chunks[0], &mut app.blame_state);
 
 	if let Some(log) = &app.line_history {
