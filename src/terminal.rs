@@ -25,7 +25,7 @@ use tui::{
 use crate::git;
 
 pub struct App<'a> {
-	pub blame: Vec<git::BlameLine<'a>>,
+	pub blame: Vec<git::BlameHunk<'a>>,
 	blame_state: ListState,
 	repo: &'a Repository,
 	commit_stack: Vec<CommitPath>,       // pushed by `b`, popped by `B`

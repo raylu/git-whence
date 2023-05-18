@@ -11,7 +11,7 @@ use tui::{
 };
 
 #[derive(Debug)]
-pub struct BlameLine<'a> {
+pub struct BlameHunk<'a> {
 	pub spans: Spans<'a>,
 	pub commit: Oid,
 	pub path: Option<PathBuf>,
@@ -21,7 +21,7 @@ pub fn blame<'a>(
 	repo: &'a Repository,
 	rel_path: &Path,
 	start_commit: Oid,
-) -> Result<Vec<BlameLine<'a>>, Box<dyn error::Error>> {
+) -> Result<Vec<BlameHunk<'a>>, Box<dyn error::Error>> {
 	let output = process::Command::new("git")
 		.args([
 			"blame",
@@ -53,7 +53,7 @@ pub fn blame<'a>(
 		];
 		spans.append(&mut format_line_num_and_code(b.line_num, b.code[0]));
 		let line_path = b.info.path;
-		out.push(BlameLine {
+		out.push(BlameHunk {
 			spans: Spans::from(spans),
 			commit: Oid::from_str(b.commit)?,
 			path: line_path.map(|p| p.to_owned()),
@@ -63,7 +63,7 @@ pub fn blame<'a>(
 			let mut spans = vec![Span::raw(" ".repeat(35))];
 			let line_num = b.line_num + i32::try_from(i).unwrap();
 			spans.append(&mut format_line_num_and_code(line_num, b.code[i]));
-			out.push(BlameLine {
+			out.push(BlameHunk {
 				spans: Spans::from(spans),
 				commit: Oid::from_str(b.commit)?,
 				path: line_path.map(|p| p.to_owned()),
