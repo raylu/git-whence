@@ -115,7 +115,7 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 					code: KeyCode::Enter, ..
 				} => {
 					search.editing = false;
-					handle_search(&app.blame, &search.query, &mut app.blame_state);
+					handle_search(&app.blame, &search.query, &mut app.blame_state, true);
 				}
 				_ => {} // ignored
 			}
@@ -157,13 +157,24 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			}
 			None => app.blame_state.select(Some(app.blame.len() - 1)),
 		},
-		// other interactions
+		// search
 		KeyEvent { code: Char('/'), .. } => {
 			app.search = Some(Search {
 				editing: true,
 				query: String::new(),
 			});
 		}
+		KeyEvent { code: Char('n'), .. } => {
+			if let Some(search) = &app.search {
+				handle_search(&app.blame, &search.query, &mut app.blame_state, true);
+			}
+		}
+		KeyEvent { code: Char('N'), .. } => {
+			if let Some(search) = &app.search {
+				handle_search(&app.blame, &search.query, &mut app.blame_state, false);
+			}
+		}
+		// other interactions
 		KeyEvent {
 			code: KeyCode::Enter, ..
 		} => {
@@ -237,9 +248,18 @@ fn scroll(app: &mut App, term_size: &Rect, amount: i16) {
 	}
 }
 
-fn handle_search(blame: &Vec<git::BlameHunk<'_>>, query: &str, blame_state: &mut ListState) {
-	let start = blame_state.selected().unwrap_or(0);
-	for i in start..blame.len() {
+fn handle_search(blame: &Vec<git::BlameHunk<'_>>, query: &str, blame_state: &mut ListState, forward: bool) {
+	let range: Box<dyn Iterator<Item = usize>> = if forward {
+		let start = match blame_state.selected() {
+			Some(index) => index + 1,
+			None => 0,
+		};
+		Box::new(start..blame.len())
+	} else {
+		let end = blame_state.selected().unwrap_or(0);
+		Box::new((0..end).rev())
+	};
+	for i in range {
 		let line = &blame[i].spans.0.last().unwrap().content;
 		if line.contains(query) {
 			blame_state.select(Some(i));
@@ -261,6 +281,13 @@ fn make_help_text() -> Text<'static> {
 		"u  pgup     up half a window",
 		"G  end      to last line",
 		"g  home     to first line",
+		"",
+		"    search",
+		"",
+		"/           start searching",
+		"enter       search forward",
+		"n           repeat search forward",
+		"N           repeat search backward",
 		"",
 		"    git",
 		"",
