@@ -32,6 +32,12 @@ pub struct App<'a> {
 	line_history: Option<Text<'static>>, // output of git -L
 	line_history_scroll: u16,
 	popup: Option<Text<'static>>,
+	search: Option<Search>,
+}
+
+struct Search {
+	editing: bool,
+	query: String,
 }
 
 struct CommitPath {
@@ -52,6 +58,7 @@ impl App<'_> {
 			line_history: None,
 			line_history_scroll: 0,
 			popup: None,
+			search: None,
 		}
 	}
 }
@@ -95,6 +102,27 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 		return Ok(true);
 	}
 
+	if let Some(search) = &mut app.search {
+		if search.editing {
+			match key {
+				KeyEvent { code: Char(c), .. } => {
+					search.query.push(*c);
+				}
+				KeyEvent { code: KeyCode::Esc, .. } => {
+					app.search = None;
+				}
+				KeyEvent {
+					code: KeyCode::Enter, ..
+				} => {
+					search.editing = false;
+					handle_search(&app.blame, &search.query, &mut app.blame_state);
+				}
+				_ => {} // ignored
+			}
+			return Ok(true);
+		}
+	}
+
 	match key {
 		// scroll
 		KeyEvent {
@@ -130,6 +158,12 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			None => app.blame_state.select(Some(app.blame.len() - 1)),
 		},
 		// other interactions
+		KeyEvent { code: Char('/'), .. } => {
+			app.search = Some(Search {
+				editing: true,
+				query: String::new(),
+			});
+		}
 		KeyEvent {
 			code: KeyCode::Enter, ..
 		} => {
@@ -199,6 +233,17 @@ fn scroll(app: &mut App, term_size: &Rect, amount: i16) {
 					app.blame_state.select(Some(0));
 				}
 			};
+		}
+	}
+}
+
+fn handle_search(blame: &Vec<git::BlameHunk<'_>>, query: &str, blame_state: &mut ListState) {
+	let start = blame_state.selected().unwrap_or(0);
+	for i in start..blame.len() {
+		let line = &blame[i].spans.0.last().unwrap().content;
+		if line.contains(query) {
+			blame_state.select(Some(i));
+			return;
 		}
 	}
 }
