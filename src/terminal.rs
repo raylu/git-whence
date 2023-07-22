@@ -15,7 +15,7 @@ use std::{
 };
 use tui::{
 	backend::{Backend, CrosstermBackend},
-	layout::{Alignment, Constraint, Direction, Layout, Rect},
+	layout::{Constraint, Direction, Layout, Rect},
 	style::{Color, Modifier, Style},
 	text::{Span, Spans, Text},
 	widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
@@ -304,10 +304,16 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 	} else {
 		[Constraint::Percentage(50), Constraint::Percentage(50)].as_ref()
 	};
+	let size = Rect::new(
+		frame.size().x,
+		frame.size().y,
+		frame.size().width,
+		frame.size().height - 1,
+	);
 	let chunks = Layout::default()
 		.direction(Direction::Horizontal)
 		.constraints(constraints)
-		.split(frame.size());
+		.split(size);
 
 	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.spans.clone())).collect();
 	let commit_path = app.commit_stack.last().unwrap();
@@ -330,9 +336,19 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 	if let Some(log) = &app.line_history {
 		let paragraph = Paragraph::new(log.clone())
 			.block(Block::default().borders(Borders::LEFT))
-			.alignment(Alignment::Left)
 			.scroll((app.line_history_scroll, 0));
 		frame.render_widget(paragraph, chunks[1]);
+	}
+
+	if let Some(search) = &app.search {
+		let paragraph = Paragraph::new("/".to_string() + &search.query).wrap(Wrap { trim: false });
+		let size = Rect::new(
+			frame.size().x,
+			frame.size().y + frame.size().height - 1,
+			frame.size().width,
+			1,
+		);
+		frame.render_widget(paragraph, size);
 	}
 
 	if let Some(popup) = &app.popup {
