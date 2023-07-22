@@ -2,7 +2,7 @@ use crossterm::{
 	event::{
 		self, Event,
 		KeyCode::{self, Char},
-		KeyEvent,
+		KeyEvent, KeyModifiers,
 	},
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -105,11 +105,29 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 	if let Some(search) = &mut app.search {
 		if search.editing {
 			match key {
+				KeyEvent { code: KeyCode::Esc, .. }
+				| KeyEvent {
+					code: Char('c'),
+					modifiers: KeyModifiers::CONTROL,
+					..
+				} => {
+					app.search = None;
+				}
+				KeyEvent {
+					code: Char('u'),
+					modifiers: KeyModifiers::CONTROL,
+					..
+				} => {
+					search.query.clear();
+				}
 				KeyEvent { code: Char(c), .. } => {
 					search.query.push(*c);
 				}
-				KeyEvent { code: KeyCode::Esc, .. } => {
-					app.search = None;
+				KeyEvent {
+					code: KeyCode::Backspace,
+					..
+				} => {
+					search.query.pop();
 				}
 				KeyEvent {
 					code: KeyCode::Enter, ..
