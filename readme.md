@@ -32,6 +32,11 @@ or install from source via `cargo install git-whence`: https://crates.io/crates/
 
 ### macOS
 
-if you get an error about how it "can’t be opened because Apple cannot check it for malicious software",
-this is because the quarantine extended attribute has been set by your browser.
+```sh
+brew tap raylu/formulae
+brew install --cask git-whence
+```
+
+if you downloaded manually and get an error about how it "can’t be opened because Apple cannot check it 
+or malicious software", this is because the quarantine extended attribute has been set by your browser.
 either `xattr -d com.apple.quarantine git-whence` or use `curl`/`wget` to download instead
