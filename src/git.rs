@@ -1,5 +1,5 @@
 use ansi_to_tui::IntoText;
-use git2::{Oid, Repository};
+use git2::{DiffLineType, Oid, Repository};
 use std::{
 	error,
 	path::{Path, PathBuf},
@@ -90,6 +90,79 @@ fn format_line_num_and_code(line_num: i32, line: &str) -> Vec<Span<'static>> {
 		Span::styled(format!(" {:4} ", line_num), Style::default().fg(Color::DarkGray)),
 		Span::raw(line.replace('\t', "    ")),
 	]
+}
+
+pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
+	let commit = match repo.find_commit(commit_id) {
+		Ok(commit) => commit,
+		Err(e) => return Text::raw(e.to_string()),
+	};
+	let parent = match commit.parent(0) {
+		Ok(commit) => commit,
+		Err(e) => return Text::raw(e.to_string()),
+	};
+	let parent_tree = match parent.tree() {
+		Ok(tree) => tree,
+		Err(e) => return Text::raw(e.to_string()),
+	};
+	let commit_tree = match commit.tree() {
+		Ok(tree) => tree,
+		Err(e) => return Text::raw(e.to_string()),
+	};
+	let diff = match repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), None) {
+		Ok(diff) => diff,
+		Err(e) => return Text::raw(e.to_string()),
+	};
+
+	let author = commit.author();
+	// TODO commit time
+	let mut lines = vec![
+		Spans::from(Span::styled(
+			commit.id().to_string(),
+			Style::default().fg(Color::Yellow),
+		)),
+		Spans::from(format!(
+			"author: {} <{}>",
+			author.name().unwrap_or_default(),
+			author.email().unwrap_or_default()
+		)),
+		Spans::default(),
+		Spans::from(commit.summary().unwrap_or_default().to_owned()),
+		Spans::default(),
+	];
+	if let Some(body) = commit.body() {
+		push_lines(&mut lines, body, Color::Reset);
+		lines.push(Spans::default());
+	}
+	let diff_cb = |_: git2::DiffDelta, _: Option<git2::DiffHunk>, diff_line: git2::DiffLine| -> bool {
+		let content = std::str::from_utf8(diff_line.content()).expect("couldn't decode diff line");
+		let sigil = match diff_line.origin_value() {
+			DiffLineType::Addition => "+",
+			DiffLineType::Deletion => "-",
+			DiffLineType::Context => " ",
+			_ => "",
+		};
+		let line = format!("{}{}", sigil, content.replace('\t', "    ").strip_suffix('\n').unwrap());
+		let color = match diff_line.origin_value() {
+			DiffLineType::FileHeader => Color::Cyan,
+			DiffLineType::HunkHeader => Color::Blue,
+			DiffLineType::Addition | DiffLineType::AddEOFNL => Color::Green,
+			DiffLineType::Deletion | DiffLineType::DeleteEOFNL => Color::Red,
+			_ => Color::Reset,
+		};
+		push_lines(&mut lines, &line, color);
+		true
+	};
+	if let Err(e) = diff.print(git2::DiffFormat::Patch, diff_cb) {
+		return Text::raw(e.to_string());
+	}
+	Text::from(lines)
+}
+
+fn push_lines(lines: &mut Vec<Spans>, s: &str, color: Color) {
+	for line in s.split('\n') {
+		lines.push(Spans::from(Span::styled(line.to_owned(), Style::default().fg(color))));
+	}
 }
 
 pub fn log_follow(repo: &Repository, rel_path: &Path, line_num: usize, start_commit: Oid) -> Text<'static> {

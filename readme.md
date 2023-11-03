@@ -11,7 +11,7 @@ to reblame at a previous version and follow a line through commit history
 
 `B` will pop the stack and blame at the initial version (first screenshot)
 
-`<Enter>` to follow a line through commit history
+`w` to follow a line through commit history
 
 ![](https://user-images.githubusercontent.com/90059/237033938-08817c9b-44dd-4313-9ecb-f3ba89890beb.png)
 

@@ -28,8 +28,8 @@ pub struct App<'a> {
 	pub blame: Vec<git::BlameHunk<'a>>,
 	blame_state: ListState,
 	repo: &'a Repository,
-	commit_stack: Vec<CommitPath>,       // pushed by `b`, popped by `B`
-	line_history: Option<Text<'static>>, // output of git -L
+	commit_stack: Vec<CommitPath>,      // pushed by `b`, popped by `B`
+	right_panel: Option<Text<'static>>, // activated by `w` or <enter>
 	line_history_scroll: u16,
 	popup: Option<Text<'static>>,
 	search: Option<Search>,
@@ -55,7 +55,7 @@ impl App<'_> {
 				commit,
 				path: rel_path.to_owned(),
 			}],
-			line_history: None,
+			right_panel: None,
 			line_history_scroll: 0,
 			popup: None,
 			search: None,
@@ -163,11 +163,11 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 		KeyEvent { code: Char('g'), .. }
 		| KeyEvent {
 			code: KeyCode::Home, ..
-		} => match &app.line_history {
+		} => match &app.right_panel {
 			Some(_) => app.line_history_scroll = 0,
 			None => app.blame_state.select(Some(0)),
 		},
-		KeyEvent { code: Char('G'), .. } | KeyEvent { code: KeyCode::End, .. } => match &app.line_history {
+		KeyEvent { code: Char('G'), .. } | KeyEvent { code: KeyCode::End, .. } => match &app.right_panel {
 			Some(line_history) => {
 				app.line_history_scroll = u16::try_from(line_history.height())
 					.unwrap()
@@ -197,8 +197,13 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			code: KeyCode::Enter, ..
 		} => {
 			if let Some(index) = app.blame_state.selected() {
+				app.right_panel = Some(git::show(app.repo, app.blame[index].commit));
+			}
+		}
+		KeyEvent { code: Char('w'), .. } => {
+			if let Some(index) = app.blame_state.selected() {
 				let commit_path = app.commit_stack.last().unwrap();
-				app.line_history = Some(git::log_follow(app.repo, &commit_path.path, index, commit_path.commit));
+				app.right_panel = Some(git::log_follow(app.repo, &commit_path.path, index, commit_path.commit));
 			}
 		}
 		KeyEvent { code: Char('b'), .. } => {
@@ -232,8 +237,8 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			code: Char('q') | KeyCode::Esc,
 			..
 		} => {
-			if app.line_history.is_some() {
-				app.line_history = None;
+			if app.right_panel.is_some() {
+				app.right_panel = None;
 				app.line_history_scroll = 0;
 			} else {
 				return Ok(false);
@@ -245,7 +250,7 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 }
 
 fn scroll(app: &mut App, term_size: &Rect, amount: i16) {
-	match &app.line_history {
+	match &app.right_panel {
 		Some(line_history) => {
 			let max = u16::try_from(line_history.height())
 				.unwrap()
@@ -309,7 +314,8 @@ fn make_help_text() -> Text<'static> {
 		"",
 		"    git",
 		"",
-		"enter       trace line through history (git -L)",
+		"enter       show commit",
+		"w           trace line through history (git -L)",
 		"b           reblame line at parent commit",
 		"B           undo/pop blame stack",
 	];
@@ -317,7 +323,7 @@ fn make_help_text() -> Text<'static> {
 }
 
 fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
-	let constraints = if app.line_history.is_none() {
+	let constraints = if app.right_panel.is_none() {
 		[Constraint::Percentage(100)].as_ref()
 	} else {
 		[Constraint::Percentage(50), Constraint::Percentage(50)].as_ref()
@@ -351,7 +357,7 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 		.highlight_style(Style::default().bg(Color::Indexed(237))); // 232 is black, 255 is white; 237 is dark gray
 	frame.render_stateful_widget(list, chunks[0], &mut app.blame_state);
 
-	if let Some(log) = &app.line_history {
+	if let Some(log) = &app.right_panel {
 		let paragraph = Paragraph::new(log.clone())
 			.block(Block::default().borders(Borders::LEFT))
 			.scroll((app.line_history_scroll, 0));
