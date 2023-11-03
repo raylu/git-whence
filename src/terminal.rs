@@ -283,7 +283,7 @@ fn handle_search(blame: &Vec<git::BlameHunk<'_>>, query: &str, blame_state: &mut
 		Box::new((0..end).rev())
 	};
 	for i in range {
-		let line = &blame[i].spans.spans.last().unwrap().content;
+		let line = &blame[i].line.spans.last().unwrap().content;
 		if line.contains(query) {
 			blame_state.select(Some(i));
 			return;
@@ -339,7 +339,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
 		.constraints(constraints)
 		.split(size);
 
-	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.spans.clone())).collect();
+	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.line.clone())).collect();
 	let commit_path = app.commit_stack.last().unwrap();
 	let title = Line::from(vec![
 		Span::styled(

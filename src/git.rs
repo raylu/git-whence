@@ -12,7 +12,7 @@ use tui::{
 
 #[derive(Debug)]
 pub struct BlameHunk<'a> {
-	pub spans: Line<'a>,
+	pub line: Line<'a>,
 	pub commit: Oid,
 	pub path: Option<PathBuf>,
 }
@@ -54,7 +54,7 @@ pub fn blame<'a>(
 		spans.append(&mut format_line_num_and_code(b.line_num, b.code[0]));
 		let line_path = b.info.path;
 		out.push(BlameHunk {
-			spans: Line::from(spans),
+			line: Line::from(spans),
 			commit: Oid::from_str(b.commit)?,
 			path: line_path.map(|p| p.to_owned()),
 		});
@@ -64,7 +64,7 @@ pub fn blame<'a>(
 			let line_num = b.line_num + i32::try_from(i).unwrap();
 			spans.append(&mut format_line_num_and_code(line_num, b.code[i]));
 			out.push(BlameHunk {
-				spans: Line::from(spans),
+				line: Line::from(spans),
 				commit: Oid::from_str(b.commit)?,
 				path: line_path.map(|p| p.to_owned()),
 			});
