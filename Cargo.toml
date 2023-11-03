@@ -13,6 +13,7 @@ license = "blessing"
 
 [dependencies]
 ansi-to-tui = "3"
+chrono = "0.4.31"
 crossterm = "0.26"
 git2 = { version = "0.17", default-features = false }
 nom = "7"

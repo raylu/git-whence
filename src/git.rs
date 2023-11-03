@@ -115,7 +115,8 @@ pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
 	};
 
 	let author = commit.author();
-	// TODO commit time
+	let commit_time = commit.time();
+	let time = chrono::DateTime::from_timestamp(commit_time.seconds(), 0).unwrap();
 	let mut lines = vec![
 		Spans::from(Span::styled(
 			commit.id().to_string(),
@@ -126,6 +127,7 @@ pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
 			author.name().unwrap_or_default(),
 			author.email().unwrap_or_default()
 		)),
+		Spans::from(format!("date: {}", time.with_timezone(&chrono::Local))),
 		Spans::default(),
 		Spans::from(commit.summary().unwrap_or_default().to_owned()),
 		Spans::default(),
