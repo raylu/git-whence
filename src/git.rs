@@ -7,12 +7,12 @@ use std::{
 };
 use tui::{
 	style::{Color, Style},
-	text::{Span, Spans, Text},
+	text::{Line, Span, Text},
 };
 
 #[derive(Debug)]
 pub struct BlameHunk<'a> {
-	pub spans: Spans<'a>,
+	pub spans: Line<'a>,
 	pub commit: Oid,
 	pub path: Option<PathBuf>,
 }
@@ -54,7 +54,7 @@ pub fn blame<'a>(
 		spans.append(&mut format_line_num_and_code(b.line_num, b.code[0]));
 		let line_path = b.info.path;
 		out.push(BlameHunk {
-			spans: Spans::from(spans),
+			spans: Line::from(spans),
 			commit: Oid::from_str(b.commit)?,
 			path: line_path.map(|p| p.to_owned()),
 		});
@@ -64,7 +64,7 @@ pub fn blame<'a>(
 			let line_num = b.line_num + i32::try_from(i).unwrap();
 			spans.append(&mut format_line_num_and_code(line_num, b.code[i]));
 			out.push(BlameHunk {
-				spans: Spans::from(spans),
+				spans: Line::from(spans),
 				commit: Oid::from_str(b.commit)?,
 				path: line_path.map(|p| p.to_owned()),
 			});
@@ -118,23 +118,23 @@ pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
 	let commit_time = commit.time();
 	let time = chrono::DateTime::from_timestamp(commit_time.seconds(), 0).unwrap();
 	let mut lines = vec![
-		Spans::from(Span::styled(
+		Line::from(Span::styled(
 			commit.id().to_string(),
 			Style::default().fg(Color::Yellow),
 		)),
-		Spans::from(format!(
+		Line::from(format!(
 			"author: {} <{}>",
 			author.name().unwrap_or_default(),
 			author.email().unwrap_or_default()
 		)),
-		Spans::from(format!("date: {}", time.with_timezone(&chrono::Local))),
-		Spans::default(),
-		Spans::from(commit.summary().unwrap_or_default().to_owned()),
-		Spans::default(),
+		Line::from(format!("date: {}", time.with_timezone(&chrono::Local))),
+		Line::default(),
+		Line::from(commit.summary().unwrap_or_default().to_owned()),
+		Line::default(),
 	];
 	if let Some(body) = commit.body() {
 		push_lines(&mut lines, body, Color::Reset);
-		lines.push(Spans::default());
+		lines.push(Line::default());
 	}
 	let diff_cb = |_: git2::DiffDelta, _: Option<git2::DiffHunk>, diff_line: git2::DiffLine| -> bool {
 		let content = std::str::from_utf8(diff_line.content()).expect("couldn't decode diff line");
@@ -161,9 +161,9 @@ pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
 	Text::from(lines)
 }
 
-fn push_lines(lines: &mut Vec<Spans>, s: &str, color: Color) {
+fn push_lines(lines: &mut Vec<Line>, s: &str, color: Color) {
 	for line in s.split('\n') {
-		lines.push(Spans::from(Span::styled(line.to_owned(), Style::default().fg(color))));
+		lines.push(Line::from(Span::styled(line.to_owned(), Style::default().fg(color))));
 	}
 }
 

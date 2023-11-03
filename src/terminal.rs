@@ -14,10 +14,10 @@ use std::{
 	path::{Path, PathBuf},
 };
 use tui::{
-	backend::{Backend, CrosstermBackend},
+	backend::CrosstermBackend,
 	layout::{Constraint, Direction, Layout, Rect},
 	style::{Color, Modifier, Style},
-	text::{Span, Spans, Text},
+	text::{Line, Span, Text},
 	widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
 	Frame, Terminal,
 };
@@ -283,7 +283,7 @@ fn handle_search(blame: &Vec<git::BlameHunk<'_>>, query: &str, blame_state: &mut
 		Box::new((0..end).rev())
 	};
 	for i in range {
-		let line = &blame[i].spans.0.last().unwrap().content;
+		let line = &blame[i].spans.spans.last().unwrap().content;
 		if line.contains(query) {
 			blame_state.select(Some(i));
 			return;
@@ -319,10 +319,10 @@ fn make_help_text() -> Text<'static> {
 		"b           reblame line at parent commit",
 		"B           undo/pop blame stack",
 	];
-	(help.drain(..).map(Spans::from).collect::<Vec<_>>()).into()
+	(help.drain(..).map(Line::from).collect::<Vec<_>>()).into()
 }
 
-fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
+fn ui(frame: &mut Frame, app: &mut App) {
 	let constraints = if app.right_panel.is_none() {
 		[Constraint::Percentage(100)].as_ref()
 	} else {
@@ -341,7 +341,7 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 
 	let items: Vec<ListItem> = app.blame.iter().map(|line| ListItem::new(line.spans.clone())).collect();
 	let commit_path = app.commit_stack.last().unwrap();
-	let title = Spans::from(vec![
+	let title = Line::from(vec![
 		Span::styled(
 			commit_path.commit.to_string(),
 			Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
