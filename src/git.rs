@@ -97,23 +97,10 @@ pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
 		Ok(commit) => commit,
 		Err(e) => return Text::raw(e.to_string()),
 	};
-	let parent = match commit.parent(0) {
-		Ok(commit) => commit,
-		Err(e) => return Text::raw(e.to_string()),
-	};
-	let parent_tree = match parent.tree() {
-		Ok(tree) => tree,
-		Err(e) => return Text::raw(e.to_string()),
-	};
-	let commit_tree = match commit.tree() {
-		Ok(tree) => tree,
-		Err(e) => return Text::raw(e.to_string()),
-	};
-	let diff = match repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), None) {
+	let diff = match diff_for_commit(repo, &commit) {
 		Ok(diff) => diff,
 		Err(e) => return Text::raw(e.to_string()),
 	};
-
 	let author = commit.author();
 	let commit_time = commit.time();
 	let time = chrono::DateTime::from_timestamp(commit_time.seconds(), 0).unwrap();
@@ -159,6 +146,11 @@ pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
 		return Text::raw(e.to_string());
 	}
 	Text::from(lines)
+}
+
+fn diff_for_commit<'a>(repo: &'a Repository, commit: &git2::Commit<'a>) -> Result<git2::Diff<'a>, git2::Error> {
+	let parent = commit.parent(0)?;
+	return repo.diff_tree_to_tree(Some(&parent.tree()?), Some(&commit.tree()?), None);
 }
 
 fn push_lines(lines: &mut Vec<Line>, s: &str, color: Color) {
