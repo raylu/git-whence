@@ -33,6 +33,7 @@ pub struct App<'a> {
 	line_history_scroll: u16,
 	popup: Option<Text<'static>>,
 	search: Option<Search>,
+	line_number: Option<String>,
 }
 
 struct Search {
@@ -59,6 +60,7 @@ impl App<'_> {
 			line_history_scroll: 0,
 			popup: None,
 			search: None,
+			line_number: None,
 		}
 	}
 }
@@ -139,6 +141,43 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			}
 			return Ok(true);
 		}
+	} else if let Some(line_number) = &mut app.line_number {
+		match key {
+			KeyEvent { code: KeyCode::Esc, .. }
+			| KeyEvent {
+				code: Char('c'),
+				modifiers: KeyModifiers::CONTROL,
+				..
+			} => app.line_number = None,
+			KeyEvent {
+				code: Char('u'),
+				modifiers: KeyModifiers::CONTROL,
+				..
+			} => {
+				line_number.clear();
+			}
+			KeyEvent { code: Char(c), .. } => {
+				if '0' <= *c && *c <= '9' {
+					line_number.push(*c);
+				}
+			}
+			KeyEvent {
+				code: KeyCode::Backspace,
+				..
+			} => {
+				line_number.pop();
+			}
+			KeyEvent {
+				code: KeyCode::Enter, ..
+			} => {
+				if let Ok(index) = line_number.parse::<usize>() {
+					app.blame_state.select(Some(index.clamp(1, app.blame.len()) - 1));
+					app.line_number = None;
+				}
+			}
+			_ => {} // ignored
+		}
+		return Ok(true);
 	}
 
 	match key {
@@ -175,6 +214,9 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			}
 			None => app.blame_state.select(Some(app.blame.len() - 1)),
 		},
+		KeyEvent { code: Char(':'), .. } => {
+			app.line_number = Some(String::new());
+		}
 		// search
 		KeyEvent { code: Char('/'), .. } => {
 			app.search = Some(Search {
@@ -304,6 +346,7 @@ fn make_help_text() -> Text<'static> {
 		"u  pgup     up half a window",
 		"G  end      to last line",
 		"g  home     to first line",
+		":123        to line 123",
 		"",
 		"    search",
 		"",
@@ -364,8 +407,12 @@ fn ui(frame: &mut Frame, app: &mut App) {
 		frame.render_widget(paragraph, chunks[1]);
 	}
 
-	if let Some(search) = &app.search {
-		let paragraph = Paragraph::new("/".to_string() + &search.query).wrap(Wrap { trim: false });
+	let command = match &app.search {
+		Some(search) => Some(format!("/{}", search.query.as_str())),
+		None => app.line_number.as_ref().map(|ln| format!(":{}", ln)),
+	};
+	if let Some(cmd_str) = command {
+		let paragraph = Paragraph::new(cmd_str).wrap(Wrap { trim: false });
 		let size = Rect::new(
 			frame.size().x,
 			frame.size().y + frame.size().height - 1,
