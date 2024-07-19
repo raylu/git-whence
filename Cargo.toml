@@ -1,7 +1,7 @@
 [package]
 name = "git-whence"
 description = "interactive git reblame"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 repository = "https://github.com/raylu/git-whence"
 readme = "readme.md"
@@ -15,7 +15,7 @@ license = "blessing"
 ansi-to-tui = "3"
 chrono = "0.4.31"
 crossterm = "0.26"
-git2 = { version = "0.17", default-features = false }
+git2 = { version = "0.19", default-features = false }
 nom = "7"
 timeago = { version = "0.4", default-features = false }
 tui = { version = "0.24", package = "ratatui" }
