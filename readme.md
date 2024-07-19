@@ -33,8 +33,7 @@ or install from source via `cargo install git-whence`: https://crates.io/crates/
 ### macOS
 
 ```sh
-brew tap raylu/formulae
-brew install --cask git-whence
+brew install --cask raylu/formulae/git-whence
 ```
 
 if you downloaded manually and get an error about how it "can’t be opened because Apple cannot check it 

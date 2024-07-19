@@ -131,7 +131,7 @@ pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
 			DiffLineType::Context => " ",
 			_ => "",
 		};
-		let line = format!("{}{}", sigil, content.replace('\t', "    ").strip_suffix('\n').unwrap());
+		let line = format!("{}{}", sigil, content.replace('\t', "    ").trim_end_matches('\n'));
 		let color = match diff_line.origin_value() {
 			DiffLineType::FileHeader => Color::Cyan,
 			DiffLineType::HunkHeader => Color::Blue,
