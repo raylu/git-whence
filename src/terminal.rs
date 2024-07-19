@@ -313,7 +313,7 @@ fn scroll(app: &mut App, term_size: &Rect, amount: i16) {
 	}
 }
 
-fn handle_search(blame: &Vec<git::BlameHunk<'_>>, query: &str, blame_state: &mut ListState, forward: bool) {
+fn handle_search(blame: &[git::BlameHunk<'_>], query: &str, blame_state: &mut ListState, forward: bool) {
 	let range: Box<dyn Iterator<Item = usize>> = if forward {
 		let start = match blame_state.selected() {
 			Some(index) => index + 1,
