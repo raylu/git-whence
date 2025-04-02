@@ -149,8 +149,8 @@ pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
 }
 
 fn diff_for_commit<'a>(repo: &'a Repository, commit: &git2::Commit<'a>) -> Result<git2::Diff<'a>, git2::Error> {
-	let parent = commit.parent(0)?;
-	return repo.diff_tree_to_tree(Some(&parent.tree()?), Some(&commit.tree()?), None);
+	let parent_tree = commit.parent(0).and_then(|parent| parent.tree()).ok();
+	return repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&commit.tree()?), None);
 }
 
 fn push_lines(lines: &mut Vec<Line>, s: &str, color: Color) {
