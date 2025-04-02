@@ -1,5 +1,5 @@
 use ansi_to_tui::IntoText;
-use git2::{DiffLineType, Oid, Repository};
+use git2::{DiffLineType, DiffOptions, Oid, Repository};
 use std::{
 	error,
 	path::{Path, PathBuf},
@@ -92,12 +92,12 @@ fn format_line_num_and_code(line_num: i32, line: &str) -> Vec<Span<'static>> {
 	]
 }
 
-pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
+pub fn show(repo: &Repository, commit_id: Oid, path: PathBuf) -> Text<'static> {
 	let commit = match repo.find_commit(commit_id) {
 		Ok(commit) => commit,
 		Err(e) => return Text::raw(e.to_string()),
 	};
-	let diff = match diff_for_commit(repo, &commit) {
+	let diff = match diff_for_commit(repo, &commit, path) {
 		Ok(diff) => diff,
 		Err(e) => return Text::raw(e.to_string()),
 	};
@@ -148,9 +148,18 @@ pub fn show(repo: &Repository, commit_id: Oid) -> Text<'static> {
 	Text::from(lines)
 }
 
-fn diff_for_commit<'a>(repo: &'a Repository, commit: &git2::Commit<'a>) -> Result<git2::Diff<'a>, git2::Error> {
+fn diff_for_commit<'a>(
+	repo: &'a Repository,
+	commit: &git2::Commit<'a>,
+	path: PathBuf,
+) -> Result<git2::Diff<'a>, git2::Error> {
 	let parent_tree = commit.parent(0).and_then(|parent| parent.tree()).ok();
-	return repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&commit.tree()?), None);
+	let mut options = DiffOptions::new();
+	return repo.diff_tree_to_tree(
+		parent_tree.as_ref(),
+		Some(&commit.tree()?),
+		Some(options.pathspec(path)),
+	);
 }
 
 fn push_lines(lines: &mut Vec<Line>, s: &str, color: Color) {

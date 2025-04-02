@@ -239,7 +239,12 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 			code: KeyCode::Enter, ..
 		} => {
 			if let Some(index) = app.blame_state.selected() {
-				app.right_panel = Some(git::show(app.repo, app.blame[index].commit));
+				let blame = &app.blame[index];
+				let line_path = match blame.path.to_owned() {
+					Some(p) => p,
+					None => app.commit_stack.last().unwrap().path.to_owned(),
+				};
+				app.right_panel = Some(git::show(app.repo, blame.commit, line_path));
 			}
 		}
 		KeyEvent { code: Char('w'), .. } => {
