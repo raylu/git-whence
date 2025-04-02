@@ -102,10 +102,8 @@ fn parse_header(input: &str) -> IResult<&str, Header> {
 }
 
 fn parse_commit_info(input: &str) -> IResult<&str, CommitInfo> {
-	let mut parse_line = (
-		terminated(take_until1(" "), tag(" ")),
-		terminated(take_till1(is_line_ending), line_ending),
-	);
+	let mut parse_line = terminated(take_till1(is_line_ending), line_ending);
+	let mut parse_field_value = terminated(take_until1::<&str, &str, ()>(" "), tag(" "));
 
 	let mut ret = CommitInfo {
 		author: "",
@@ -119,16 +117,17 @@ fn parse_commit_info(input: &str) -> IResult<&str, CommitInfo> {
 				return Ok((remaining, ret));
 			}
 			Err(_) => {
-				let (field, value);
-				(remaining, (field, value)) = parse_line.parse(remaining)?;
-				match field {
-					"author" => ret.author = value,
-					"committer-time" => {
+				let info_line;
+				(remaining, info_line) = parse_line(remaining)?;
+				match parse_field_value(info_line) {
+					Ok((value, "author")) => ret.author = value,
+					Ok((value, "committer-time")) => {
 						let timestamp: u64 = value.parse().unwrap();
 						ret.commit_time = make_time(timestamp);
 					}
-					"filename" => ret.path = Some(Path::new(value)),
-					_ => {}
+					Ok((value, "filename")) => ret.path = Some(Path::new(value)),
+					Ok((_, _)) => {}
+					Err(_) => {} // no value for "boundary" field
 				}
 			}
 		};
@@ -261,6 +260,28 @@ filename Doc/library/gc.rst
 				author: "raylu",
 				commit_time: SystemTime::UNIX_EPOCH + time::Duration::from_secs(9876543210),
 				path: Some(Path::new("Doc/library/gc.rst")),
+			}
+		);
+	}
+
+	#[test]
+	fn commit_info_with_boundary() {
+		let data = "author raylu
+committer-time 1743570872
+committer-tz -0700
+summary initial commit
+boundary
+filename file1
+	line of code
+";
+		let (remaining, commit_info) = parse_commit_info(data).expect("couldn't parse commit info");
+		assert_eq!(remaining, "\tline of code\n");
+		assert_eq!(
+			commit_info,
+			CommitInfo {
+				author: "raylu",
+				commit_time: SystemTime::UNIX_EPOCH + time::Duration::from_secs(1743570872),
+				path: Some(Path::new("file1")),
 			}
 		);
 	}
