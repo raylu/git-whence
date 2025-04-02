@@ -240,9 +240,9 @@ fn handle_input(key: &KeyEvent, app: &mut App, term_size: &Rect) -> Result<bool,
 		} => {
 			if let Some(index) = app.blame_state.selected() {
 				let blame = &app.blame[index];
-				let line_path = match blame.path.to_owned() {
+				let line_path = match blame.path.as_ref() {
 					Some(p) => p,
-					None => app.commit_stack.last().unwrap().path.to_owned(),
+					None => &app.commit_stack.last().unwrap().path,
 				};
 				app.right_panel = Some(git::show(app.repo, blame.commit, line_path));
 			}

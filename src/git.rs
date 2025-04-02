@@ -92,7 +92,7 @@ fn format_line_num_and_code(line_num: i32, line: &str) -> Vec<Span<'static>> {
 	]
 }
 
-pub fn show(repo: &Repository, commit_id: Oid, path: PathBuf) -> Text<'static> {
+pub fn show(repo: &Repository, commit_id: Oid, path: &PathBuf) -> Text<'static> {
 	let commit = match repo.find_commit(commit_id) {
 		Ok(commit) => commit,
 		Err(e) => return Text::raw(e.to_string()),
@@ -151,7 +151,7 @@ pub fn show(repo: &Repository, commit_id: Oid, path: PathBuf) -> Text<'static> {
 fn diff_for_commit<'a>(
 	repo: &'a Repository,
 	commit: &git2::Commit<'a>,
-	path: PathBuf,
+	path: &PathBuf,
 ) -> Result<git2::Diff<'a>, git2::Error> {
 	let parent_tree = commit.parent(0).and_then(|parent| parent.tree()).ok();
 	let mut options = DiffOptions::new();
