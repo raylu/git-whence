@@ -47,7 +47,7 @@ pub fn blame<'a>(
 			Span::styled(format!("{:.8}", b.commit), Style::default().fg(Color::Yellow)),
 			Span::raw(format!(" {}", fmt_width(b.info.author, 12))),
 			Span::styled(
-				format!(" {}", fmt_width(&time_display, 13)),
+				format!(" {}", fmt_width(&time_display, 14)),
 				Style::default().fg(Color::LightRed),
 			),
 		];
@@ -60,7 +60,7 @@ pub fn blame<'a>(
 		});
 
 		for i in 1..b.code.len() {
-			let mut spans = vec![Span::raw(" ".repeat(35))];
+			let mut spans = vec![Span::raw(" ".repeat(36))];
 			let line_num = b.line_num + i32::try_from(i).unwrap();
 			spans.append(&mut format_line_num_and_code(line_num, b.code[i]));
 			out.push(BlameHunk {
